@@ -8,11 +8,12 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # MRL source and include files
 
 set(MRL_SOURCE
-	
+	"src/mrl/vulkan/ll_renderer.c"
 )
 
 set(MRL_INCLUDE
-	
+	"include/mrl/api_utils.h"
+	"include/mrl/vulkan/ll_renderer.h"
 )
 
 #####################################################
@@ -31,9 +32,9 @@ else()
 endif()
 add_library(MRL::mrl ALIAS mrl)
 
-# Link MRL
-find_package(MRL REQUIRED)
-target_link_libraries(mrl PUBLIC MRL::MRL)
+# Link MGL
+find_package(MGL REQUIRED)
+target_link_libraries(mrl PUBLIC MGL::MGL)
 
 # Link Vulkan
 find_package(Vulkan REQUIRED)
