@@ -8,18 +8,18 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # MRL source and include files
 
 set(MRL_SOURCE
-	"src/mrl/vulkan/ll_renderer.c"
+	"src/mrl/ogl330/ll_renderer.c"
 )
 
 set(MRL_INCLUDE
 	"include/mrl/api_utils.h"
-	"include/mrl/vulkan/ll_renderer.h"
+	"include/mrl/ogl330/ll_renderer.h"
 )
 
 #####################################################
 # Set options
 option(MRL_BUILD_SHARED OFF)
-option(MRL_BUILD_VULKAN ON)
+option(MRL_BUILD_OGL330 ON)
 
 #####################################################
 # Create MRL target and set its properties
@@ -36,9 +36,13 @@ add_library(MRL::mrl ALIAS mrl)
 find_package(MGL REQUIRED)
 target_link_libraries(mrl PUBLIC MGL::MGL)
 
-# Link Vulkan
-find_package(Vulkan REQUIRED)
-target_link_libraries(mrl PRIVATE Vulkan::Vulkan)
+# Link GLEW and OpenGL
+if(MRL_BUILD_OGL330)
+	find_package(OpenGL REQUIRED)
+	target_link_libraries(mrl PRIVATE OpenGL::GL)
+	find_package(GLEW REQUIRED)
+	target_link_libraries(mrl PUBLIC GLEW::GLEW)
+endif()
 
 generate_export_header(mrl)
 target_include_directories(mrl
@@ -61,8 +65,8 @@ target_compile_definitions(mrl
 		MRL_API_EXPORT
 )
 
-if (MRL_BUILD_VULKAN)
-	target_compile_definitions(mrl PUBLIC MRL_BUILD_VULKAN)
+if (MRL_BUILD_OGL330)
+	target_compile_definitions(mrl PUBLIC MRL_BUILD_OGL330)
 endif()
 
 # Add file filters
@@ -131,3 +135,20 @@ export(EXPORT mrl-targets FILE ${CMAKE_CURRENT_BINARY_DIR}/MRLTargets.cmake NAME
 
 # Register package in user's package registry
 export(PACKAGE MRL)
+
+##############################################
+# Build examples
+option(MRL_BUILD_EXAMPLES ON)
+if(MRL_BUILD_EXAMPLES)
+    file(GLOB_RECURSE files "src/examples/*.c")
+    foreach(file ${files})
+	string(REGEX REPLACE "(^.*\\/|\\.[^.]*$)" "" file_without_ext ${file})
+	set(file_without_ext example_${file_without_ext})
+	add_executable(${file_without_ext} ${file})
+	target_link_libraries(${file_without_ext} mrl)
+	set_target_properties(${file_without_ext} PROPERTIES FOLDER Examples)
+	install(TARGETS ${file_without_ext}
+		RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}/examples
+	)
+endforeach()
+endif()
