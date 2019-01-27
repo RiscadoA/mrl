@@ -64,7 +64,7 @@ int main(int argc, char** argv)
 
 			[desc = "Material uniform buffer"]
 			[name = "Material"]
-			uniform material : 0; 
+			uniform material : 0
 			{
 				f32v4 color : 0;
 				f32 specular : 1;
