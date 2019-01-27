@@ -41,4 +41,4 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif // __cplusplus
-#endif // MRL_ERROR_H
+#endif
