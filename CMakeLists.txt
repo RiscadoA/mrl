@@ -8,18 +8,22 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # MRL source and include files
 
 set(MRL_SOURCE
-	"src/mrl/ogl330/ll_renderer.c"
+	"src/mrl/error.c"
+	"src/mrl/render_device.c"
+	"src/mrl/ogl_330_render_device.c"
 )
 
 set(MRL_INCLUDE
 	"include/mrl/api_utils.h"
-	"include/mrl/ogl330/ll_renderer.h"
+	"include/mrl/error.h"
+	"include/mrl/render_device.h"
+	"include/mrl/ogl_330_render_device.h"
 )
 
 #####################################################
 # Set options
 option(MRL_BUILD_SHARED OFF)
-option(MRL_BUILD_OGL330 ON)
+option(MRL_BUILD_OGL_330 ON)
 
 #####################################################
 # Create MRL target and set its properties
@@ -37,7 +41,7 @@ find_package(MGL REQUIRED)
 target_link_libraries(mrl PUBLIC MGL::MGL)
 
 # Link GLEW and OpenGL
-if(MRL_BUILD_OGL330)
+if(MRL_BUILD_OGL_330)
 	find_package(OpenGL REQUIRED)
 	target_link_libraries(mrl PRIVATE OpenGL::GL)
 	find_package(GLEW REQUIRED)
@@ -65,8 +69,8 @@ target_compile_definitions(mrl
 		MRL_API_EXPORT
 )
 
-if (MRL_BUILD_OGL330)
-	target_compile_definitions(mrl PUBLIC MRL_BUILD_OGL330)
+if (MRL_BUILD_OGL_330)
+	target_compile_definitions(mrl PUBLIC MRL_BUILD_OGL_330)
 endif()
 
 # Add file filters
