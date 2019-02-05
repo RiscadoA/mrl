@@ -10,6 +10,7 @@ extern "C" {
 	typedef void(*mrl_render_device_hint_error_callback_t)(mrl_error_t error, const mgl_chr8_t* msg);
 
 	typedef struct mrl_hint_t mrl_hint_t;
+	typedef struct mrl_index_buffer_desc_t mrl_index_buffer_desc_t;
 	typedef struct mrl_vertex_buffer_desc_t mrl_vertex_buffer_desc_t;
 	typedef struct mrl_vertex_element_t mrl_vertex_element_t;
 	typedef struct mrl_vertex_array_desc_t mrl_vertex_array_desc_t;
@@ -17,6 +18,7 @@ extern "C" {
 	typedef struct mrl_shader_pipeline_desc_t mrl_shader_pipeline_desc_t;
 	typedef struct mrl_render_device_desc_t mrl_render_device_desc_t;
 
+	typedef void mrl_index_buffer_t;
 	typedef void mrl_vertex_buffer_t;
 	typedef void mrl_vertex_array_t;
 	typedef void mrl_shader_stage_t;
@@ -73,13 +75,108 @@ extern "C" {
 	NULL,\
 })
 
+	// ---- Index buffers ----
+
+	enum
+	{
+		/// <summary>
+		///		The buffer should be read a lot and writen to rarely.
+		/// </summary>
+		MRL_INDEX_BUFFER_USAGE_DEFAULT,
+
+		/// <summary>
+		///		Static buffer, data is read-only and cannot be changed. 
+		/// </summary>
+		MRL_INDEX_BUFFER_USAGE_STATIC,
+
+		/// <summary>
+		///		The buffer can be written to frequently and read a lot of times.
+		///		Allows mrl_map_index_buffer to be used to update the buffer.
+		/// </summary>
+		MRL_INDEX_BUFFER_USAGE_DYNAMIC,
+
+		/// <summary>
+		///		Used for buffers that are updated every frame.
+		/// </summary>
+		MRL_INDEX_BUFFER_USAGE_STREAM,
+	};
+
+	enum
+	{
+		MRL_INDEX_BUFFER_FORMAT_U16,
+		MRL_INDEX_BUFFER_FORMAT_U32,
+	};
+
+	struct mrl_index_buffer_desc_t
+	{
+		/// <summary>
+		///		Initial index buffer data.
+		///		When the usage mode is not set to MRL_INDEX_BUFFER_USAGE_STATIC, this pointer can be set to NULL to create an empty buffer.
+		/// </summary>
+		const void* data;
+
+		/// <summary>
+		///		Index buffer size.
+		/// </summary>
+		mgl_u64_t size;
+
+		/// <summary>
+		///		Index buffer usage mode.
+		///		Valid values:
+		///		- MRL_INDEX_BUFFER_USAGE_DEFAULT;
+		///		- MRL_INDEX_BUFFER_USAGE_STATIC;
+		///		- MRL_INDEX_BUFFER_USAGE_DYNAMIC;
+		///		- MRL_INDEX_BUFFER_USAGE_STREAM;
+		/// </summary>
+		mgl_enum_t usage;
+
+		/// <summary>
+		///		Index data format.
+		///		Valid values:
+		///		- MRL_INDEX_BUFFER_FORMAT_U16;
+		///		- MRL_INDEX_BUFFER_FORMAT_U32;
+		/// </summary>
+		mgl_enum_t format;
+
+		/// <summary>
+		///		Hint list.
+		///		Hints may be ignored by some render devices.
+		///		Optional (can be NULL).
+		/// </summary>
+		const mrl_hint_t* hints;
+	};
+
+#define MRL_DEFAULT_INDEX_BUFFER_DESC ((mrl_index_buffer_desc_t) {\
+	NULL,\
+	0,\
+	MRL_INDEX_BUFFER_USAGE_DEFAULT,\
+	MRL_INDEX_BUFFER_FORMAT_U32,\
+	NULL,\
+})
+
 	// ---- Vertex buffers ----
 
 	enum
 	{
+		/// <summary>
+		///		The buffer should be read a lot and writen to rarely.
+		/// </summary>
 		MRL_VERTEX_BUFFER_USAGE_DEFAULT,
+
+		/// <summary>
+		///		Static buffer, data is read-only and cannot be changed. 
+		/// </summary>
 		MRL_VERTEX_BUFFER_USAGE_STATIC,
+
+		/// <summary>
+		///		The buffer can be written to frequently and read a lot of times.
+		///		Allows mrl_map_index_buffer to be used to update the buffer.
+		/// </summary>
 		MRL_VERTEX_BUFFER_USAGE_DYNAMIC,
+
+		/// <summary>
+		///		Used for buffers that are updated every frame.
+		/// </summary>
 		MRL_VERTEX_BUFFER_USAGE_STREAM,
 	};
 
@@ -400,14 +497,19 @@ extern "C" {
 		mgl_enum_t vsync_mode;
 
 		/// <summary>
-		///		Maximum number of vertex arrays.
+		///		Maximum number of index buffers.
 		/// </summary>
-		mgl_u64_t max_vertex_array_count;
+		mgl_u64_t max_index_buffer_count;
 
 		/// <summary>
 		///		Maximum number of vertex buffers.
 		/// </summary>
 		mgl_u64_t max_vertex_buffer_count;
+
+		/// <summary>
+		///		Maximum number of vertex arrays.
+		/// </summary>
+		mgl_u64_t max_vertex_array_count;
 
 		/// <summary>
 		///		Maximum number of shader stages.
@@ -431,8 +533,9 @@ extern "C" {
 	NULL,\
 	NULL,\
 	MRL_VSYNC_ADAPTIVE,\
-	256,\
 	512,\
+	512,\
+	256,\
 	256,\
 	256,\
 	NULL,\
@@ -441,9 +544,20 @@ extern "C" {
 	typedef struct mrl_render_device_t mrl_render_device_t;
 	struct mrl_render_device_t
 	{
+		// ------- Index buffer functions -------
+		mrl_error_t(*create_index_buffer)(mrl_render_device_t* rd, mrl_index_buffer_t** ib, mrl_index_buffer_desc_t* desc);
+		void(*destroy_index_buffer)(mrl_render_device_t* rd, mrl_index_buffer_t* ib);
+		void(*set_index_buffer)(mrl_render_device_t* rd, mrl_index_buffer_t* ib);
+		void*(*map_index_buffer)(mrl_render_device_t* rd, mrl_index_buffer_t* ib);
+		void(*unmap_index_buffer)(mrl_render_device_t* rd, mrl_index_buffer_t* ib);
+		void(*update_index_buffer)(mrl_render_device_t* rd, mrl_index_buffer_t* ib, mgl_u64_t offset, mgl_u64_t size, const void* data);
+
 		// ------- Vertex buffer functions -------
 		mrl_error_t(*create_vertex_buffer)(mrl_render_device_t* rd, mrl_vertex_buffer_t** vb, mrl_vertex_buffer_desc_t* desc);
 		void(*destroy_vertex_buffer)(mrl_render_device_t* rd, mrl_vertex_buffer_t* vb);
+		void*(*map_vertex_buffer)(mrl_render_device_t* rd, mrl_vertex_buffer_t* vb);
+		void(*unmap_vertex_buffer)(mrl_render_device_t* rd, mrl_vertex_buffer_t* vb);
+		void(*update_vertex_buffer)(mrl_render_device_t* rd, mrl_vertex_buffer_t* vb, mgl_u64_t offset, mgl_u64_t size, const void* data);
 
 		// ------- Vertex array functions -------
 		mrl_error_t(*create_vertex_array)(mrl_render_device_t* rd, mrl_vertex_array_t** va, mrl_vertex_array_desc_t* desc);
@@ -469,6 +583,56 @@ extern "C" {
 		const mgl_chr8_t*(*get_type_name)(mrl_render_device_t* rd);
 	};
 
+	// ------- Index buffer functions -------
+
+	/// <summary>
+	///		Creates an index buffer.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="ib">Out index buffer handle</param>
+	/// <param name="desc">Index buffer description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_create_index_buffer(mrl_render_device_t* rd, mrl_index_buffer_t** ib, mrl_index_buffer_desc_t* desc);
+
+	/// <summary>
+	///		Destroys an index buffer.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="ib">Index buffer handle</param>
+	MRL_API void mrl_destroy_index_buffer(mrl_render_device_t* rd, mrl_index_buffer_t* ib);
+
+	/// <summary>
+	///		Sets an index buffer as active.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="ib">Index buffer handle</param>
+	MRL_API void mrl_set_index_buffer(mrl_render_device_t* rd, mrl_index_buffer_t* ib);
+
+	/// <summary>
+	///		Maps an index buffer.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="ib">Index buffer handle</param>
+	/// <returns>Pointer to index buffer data</returns>
+	MRL_API void* mrl_map_index_buffer(mrl_render_device_t* rd, mrl_index_buffer_t* ib);
+
+	/// <summary>
+	///		Unmaps an index buffer.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="ib">Index buffer handle</param>
+	MRL_API void mrl_unmap_index_buffer(mrl_render_device_t* rd, mrl_index_buffer_t* ib);
+
+	/// <summary>
+	///		Updates an index buffer data.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="ib">Index buffer handle</param>
+	/// <param name="offset">Data offset</param>
+	/// <param name="size">Data size</param>
+	/// <param name="data">Pointer to data</param>
+	MRL_API void mrl_update_index_buffer(mrl_render_device_t* rd, mrl_index_buffer_t* ib, mgl_u64_t offset, mgl_u64_t size, const void* data);
+
 	// ------- Vertex buffer functions -------
 
 	/// <summary>
@@ -486,6 +650,31 @@ extern "C" {
 	/// <param name="rd">Render device</param>
 	/// <param name="vb">Vertex buffer handle</param>
 	MRL_API void mrl_destroy_vertex_buffer(mrl_render_device_t* rd, mrl_vertex_buffer_t* vb);
+
+	/// <summary>
+	///		Maps a vertex buffer.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="vb">vertex buffer handle</param>
+	/// <returns>Pointer to index buffer data</returns>
+	MRL_API void* mrl_map_vertex_buffer(mrl_render_device_t* rd, mrl_vertex_buffer_t* vb);
+
+	/// <summary>
+	///		Unmaps a vertex buffer.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="vb">Index buffer handle</param>
+	MRL_API void mrl_unmap_vertex_buffer(mrl_render_device_t* rd, mrl_vertex_buffer_t* vb);
+
+	/// <summary>
+	///		Updates a vertex buffer data.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="vb">vertex buffer handle</param>
+	/// <param name="offset">Data offset</param>
+	/// <param name="size">Data size</param>
+	/// <param name="data">Pointer to data</param>
+	MRL_API void mrl_update_vertex_buffer(mrl_render_device_t* rd, mrl_vertex_buffer_t* vb, mgl_u64_t offset, mgl_u64_t size, const void* data);
 
 	// ------- Vertex array functions -------
 

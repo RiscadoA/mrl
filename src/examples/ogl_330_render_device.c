@@ -20,9 +20,16 @@ struct
 		mrl_shader_pipeline_t* pipeline;
 	} shader;
 	
+	mrl_index_buffer_t* ibo;
 	mrl_vertex_buffer_t* vbo;
 	mrl_vertex_array_t* vao;
 } app;
+
+typedef struct
+{
+	mgl_f32_t x, y;
+	mgl_f32_t r, g, b, a;
+} my_vertex_t;
 
 void handle_error(mrl_error_t error, const mgl_chr8_t* msg);
 
@@ -98,51 +105,29 @@ void load(void)
 		handle_error(mrl_create_shader_pipeline(app.rd, &app.shader.pipeline, &desc), u8"Failed to create shader pipeline");
 	}
 
-	typedef struct
+	// Init IBO
 	{
-		mgl_f32_t x, y;
-		mgl_f32_t r, g, b, a;
-	} my_vertex_t;
+		mrl_index_buffer_desc_t desc = MRL_DEFAULT_INDEX_BUFFER_DESC;
 
-	// Init VBO
-	{
-		mrl_vertex_buffer_desc_t desc = MRL_DEFAULT_VERTEX_BUFFER_DESC;
-
-		my_vertex_t data[6] =
+		mgl_u16_t data[6] =
 		{
-			{
-				-0.5f, -0.5f,
-				1.0f, 0.0f, 0.0f, 1.0f,
-			},
-
-			{
-				+0.5f, -0.5f,
-				0.0f, 1.0f, 0.0f, 1.0f,
-			},
-
-			{
-				+0.5f, +0.5f,
-				0.0f, 0.0f, 1.0f, 1.0f,
-			},
-
-			{
-				-0.5f, -0.5f,
-				1.0f, 0.0f, 0.0f, 1.0f,
-			},
-
-			{
-				-0.5f, +0.5f,
-				1.0f, 1.0f, 1.0f, 1.0f,
-			},
-
-			{
-				+0.5f, +0.5f,
-				0.0f, 0.0f, 1.0f, 1.0f,
-			},
+			0, 1, 2,
+			0, 3, 2,
 		};
 
 		desc.data = data;
 		desc.size = sizeof(data);
+		desc.format = MRL_INDEX_BUFFER_FORMAT_U16;
+
+		handle_error(mrl_create_index_buffer(app.rd, &app.ibo, &desc), u8"Failed to create index buffer");
+	}
+
+	// Init VBO
+	{
+		mrl_vertex_buffer_desc_t desc = MRL_DEFAULT_VERTEX_BUFFER_DESC;
+		desc.data = NULL;
+		desc.size = sizeof(my_vertex_t) * 4;
+		desc.usage = MRL_VERTEX_BUFFER_USAGE_DYNAMIC;
 
 		handle_error(mrl_create_vertex_buffer(app.rd, &app.vbo, &desc), u8"Failed to create vertex buffer");
 	}
@@ -189,6 +174,9 @@ void unload(void)
 	// Terminate vertex buffer
 	mrl_destroy_vertex_buffer(app.rd, app.vbo);
 
+	// Terminate index buffer
+	mrl_destroy_index_buffer(app.rd, app.ibo);
+
 	// Terminate shader pipeline
 	mrl_destroy_shader_stage(app.rd, app.shader.pipeline);
 
@@ -228,16 +216,63 @@ int main(int argc, char** argv)
 
 	load();
 
+	mgl_bool_t decrease = MGL_FALSE;
+	mgl_f32_t change = 0.0f;
+
 	// Main loop
 	while (app.running)
 	{
+		if (decrease)
+		{
+			change -= 0.01f;
+			if (change <= -0.5f)
+				decrease = MGL_FALSE;
+		}
+		else
+		{
+			change += 0.01f;
+			if (change >= +0.5f)
+				decrease = MGL_TRUE;
+		}
+
 		mgl_poll_window_events(&app.window);
 
 		mrl_clear_color(app.rd, 0.0f, 0.4f, 0.8f, 1.0f);
 
+		// Update vertex buffer
+		{
+			my_vertex_t* data = (my_vertex_t*)mrl_map_vertex_buffer(app.rd, app.vbo);
+			
+			data[0] = (my_vertex_t) {
+				-0.5f + change, -0.5f,
+				1.0f, 0.0f, 0.0f, 1.0f,
+			};
+
+			data[1] = (my_vertex_t)
+			{
+				+0.5f + change, -0.5f,
+				0.0f, 1.0f, 0.0f, 1.0f,
+			};
+
+			data[2] = (my_vertex_t)
+			{
+				+0.5f + change, +0.5f,
+				0.0f, 0.0f, 1.0f, 1.0f,
+			};
+
+			data[3] = (my_vertex_t)
+			{
+				-0.5f + change, +0.5f,
+				1.0f, 0.0f, 1.0f, 1.0f,
+			};
+
+			mrl_unmap_vertex_buffer(app.rd, app.vbo);
+		}
+
 		mrl_set_shader_pipeline(app.rd, app.shader.pipeline);
+		mrl_set_index_buffer(app.rd, app.ibo);
 		mrl_set_vertex_array(app.rd, app.vao);
-		mrl_draw_triangles(app.rd, 0, 6);
+		mrl_draw_triangles_indexed(app.rd, 0, 6);
 
 		mrl_swap_buffers(app.rd);
 	}

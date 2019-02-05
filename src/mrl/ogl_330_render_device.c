@@ -35,13 +35,19 @@ typedef struct
 		{
 			mgl_pool_allocator_t pool;
 			mgl_u8_t* data;
-		} vertex_array;
+		} index_buffer;
 
 		struct
 		{
 			mgl_pool_allocator_t pool;
 			mgl_u8_t* data;
 		} vertex_buffer;
+
+		struct
+		{
+			mgl_pool_allocator_t pool;
+			mgl_u8_t* data;
+		} vertex_array;
 
 		struct
 		{
@@ -68,6 +74,12 @@ typedef struct
 typedef struct
 {
 	GLuint id;
+	GLenum format;
+} mrl_ogl_330_index_buffer_t;
+
+typedef struct
+{
+	GLuint id;
 } mrl_ogl_330_vertex_buffer_t;
 
 typedef struct
@@ -84,6 +96,133 @@ typedef struct
 {
 	GLuint id;
 } mrl_ogl_330_shader_pipeline_t;
+
+static mrl_error_t create_index_buffer(mrl_render_device_t* brd, mrl_index_buffer_t** ib, mrl_index_buffer_desc_t* desc)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+
+	// Check for invalid input
+	if (desc->usage == MRL_INDEX_BUFFER_USAGE_STATIC && desc->data == NULL)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create index buffer: when the usage mode is set to static, the pointer to the initial data must not be NULL");
+		return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	// Get format
+	GLenum format;
+
+	if (desc->format == MRL_INDEX_BUFFER_FORMAT_U16)
+		format = GL_UNSIGNED_SHORT;
+	else if (desc->format == MRL_INDEX_BUFFER_FORMAT_U32)
+		format = GL_UNSIGNED_INT;
+	else
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create index buffer: invalid index format");
+		return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	// Get usage
+	GLenum usage;
+
+	if (desc->usage == MRL_INDEX_BUFFER_USAGE_DEFAULT)
+		usage = GL_STATIC_DRAW;
+	else if (desc->usage == MRL_INDEX_BUFFER_USAGE_STATIC)
+		usage = GL_STATIC_DRAW;
+	else if (desc->usage == MRL_INDEX_BUFFER_USAGE_DYNAMIC)
+		usage = GL_DYNAMIC_DRAW;
+	else if (desc->usage == MRL_INDEX_BUFFER_USAGE_STREAM)
+		usage = GL_STREAM_DRAW;
+	else
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create index buffer: invalid usage mode");
+		return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	// Initialize index buffer
+	GLuint id;
+	glGenBuffers(1, &id);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, id);
+	if (desc->data == NULL)
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, desc->size, NULL, usage);
+	else
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, desc->size, desc->data, usage);
+
+	// Allocate object
+	mrl_ogl_330_index_buffer_t* obj;
+	mgl_error_t err = mgl_allocate(
+		&rd->memory.index_buffer.pool,
+		sizeof(*obj),
+		(void**)&obj);
+	if (err != MGL_ERROR_NONE)
+	{
+		glDeleteBuffers(1, &id);
+		return mrl_make_mgl_error(err);
+	}
+
+	// Store index buffer info
+	obj->id = id;
+	obj->format = format;
+	*ib = (mrl_index_buffer_t*)obj;
+
+	return MRL_ERROR_NONE;
+}
+
+static void destroy_index_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t* ib)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_index_buffer_t* obj = (mrl_ogl_330_index_buffer_t*)ib;
+
+	// Delete index buffer
+	glDeleteBuffers(1, &obj->id);
+
+	// Deallocate object
+	mgl_deallocate(
+		&rd->memory.index_buffer.pool,
+		obj);
+}
+
+static void set_index_buffer(mrl_render_device_t* brd, mrl_index_buffer_t* ib)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_index_buffer_t* obj = (mrl_ogl_330_index_buffer_t*)ib;
+
+	// Set index buffer
+	rd->state.index_buffer_format = obj->format;
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj->id);
+}
+
+static void* map_index_buffer(mrl_render_device_t* brd, mrl_index_buffer_t* ib)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_index_buffer_t* obj = (mrl_ogl_330_index_buffer_t*)ib;
+
+	// Map IBO
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj->id);
+	return glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
+}
+
+static void unmap_index_buffer(mrl_render_device_t* brd, mrl_index_buffer_t* ib)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_index_buffer_t* obj = (mrl_ogl_330_index_buffer_t*)ib;
+
+	// Unmap IBO
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj->id);
+	glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+}
+
+static void update_index_buffer(mrl_render_device_t* brd, mrl_index_buffer_t* ib, mgl_u64_t offset, mgl_u64_t size, const void* data)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_index_buffer_t* obj = (mrl_ogl_330_index_buffer_t*)ib;
+
+	// Update IBO
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj->id);
+	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, offset, size, data);
+}
 
 static mrl_error_t create_vertex_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t** vb, mrl_vertex_buffer_desc_t* desc)
 {
@@ -155,6 +294,36 @@ static void destroy_vertex_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t*
 	mgl_deallocate(
 		&rd->memory.vertex_buffer.pool,
 		obj);
+}
+
+static void* map_vertex_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t* vb)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_vertex_buffer_t* obj = (mrl_ogl_330_vertex_buffer_t*)vb;
+
+	// Map VBO
+	glBindBuffer(GL_ARRAY_BUFFER, obj->id);
+	return glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+}
+
+static void unmap_vertex_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t* vb)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_vertex_buffer_t* obj = (mrl_ogl_330_vertex_buffer_t*)vb;
+
+	// Unmap VBO
+	glBindBuffer(GL_ARRAY_BUFFER, obj->id);
+	glUnmapBuffer(GL_ARRAY_BUFFER);
+}
+
+static void update_vertex_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t* vb, mgl_u64_t offset, mgl_u64_t size, const void* data)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_vertex_buffer_t* obj = (mrl_ogl_330_vertex_buffer_t*)vb;
+
+	// Update VBO
+	glBindBuffer(GL_ARRAY_BUFFER, obj->id);
+	glBufferSubData(GL_ARRAY_BUFFER, offset, size, data);
 }
 
 static mrl_error_t create_vertex_array(mrl_render_device_t* brd, mrl_vertex_array_t** va, mrl_vertex_array_desc_t* desc)
@@ -508,9 +677,24 @@ static mrl_error_t create_rd_allocators(mrl_ogl_330_render_device_t* rd, const m
 		rd->memory.vertex_array.data,
 		MGL_POOL_ALLOCATOR_SIZE(desc->max_vertex_array_count, sizeof(mrl_ogl_330_vertex_array_t)));
 
+	// Create index buffer pool
+	err = mgl_allocate(
+		rd->allocator,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_index_buffer_count, sizeof(mrl_ogl_330_index_buffer_t)),
+		(void**)&rd->memory.index_buffer.data);
+	if (err != MGL_ERROR_NONE)
+		goto mgl_error_5;
+	mgl_init_pool_allocator(
+		&rd->memory.index_buffer.pool,
+		desc->max_index_buffer_count,
+		sizeof(mrl_ogl_330_index_buffer_t),
+		rd->memory.index_buffer.data,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_index_buffer_count, sizeof(mrl_ogl_330_index_buffer_t)));
+
 	return MRL_ERROR_NONE;
 
-
+mgl_error_5:
+	mgl_deallocate(rd->allocator, rd->memory.vertex_array.data);
 mgl_error_4:
 	mgl_deallocate(rd->allocator, rd->memory.vertex_buffer.data);
 mgl_error_3:
@@ -523,6 +707,7 @@ mgl_error_1:
 
 static void destroy_rd_allocators(mrl_ogl_330_render_device_t* rd)
 {
+	mgl_deallocate(rd->allocator, rd->memory.index_buffer.data);
 	mgl_deallocate(rd->allocator, rd->memory.vertex_buffer.data);
 	mgl_deallocate(rd->allocator, rd->memory.vertex_array.data);
 	mgl_deallocate(rd->allocator, rd->memory.shader_stage.data);
@@ -531,9 +716,22 @@ static void destroy_rd_allocators(mrl_ogl_330_render_device_t* rd)
 
 static void set_rd_functions(mrl_ogl_330_render_device_t* rd)
 {
-	// Vertex array functions
+	// Index buffer functions
+	rd->base.create_index_buffer = &create_index_buffer;
+	rd->base.destroy_index_buffer = &destroy_index_buffer;
+	rd->base.set_index_buffer = &set_index_buffer;
+	rd->base.map_index_buffer = &map_index_buffer;
+	rd->base.unmap_index_buffer = &unmap_index_buffer;
+	rd->base.update_index_buffer = &update_index_buffer;
+
+	// Vertex buffer functions
 	rd->base.create_vertex_buffer = &create_vertex_buffer;
 	rd->base.destroy_vertex_buffer = &destroy_vertex_buffer;
+	rd->base.map_vertex_buffer = &map_vertex_buffer;
+	rd->base.unmap_vertex_buffer = &unmap_vertex_buffer;
+	rd->base.update_vertex_buffer = &update_vertex_buffer;
+
+	// Vertex array functions
 	rd->base.create_vertex_array = &create_vertex_array;
 	rd->base.destroy_vertex_array = &destroy_vertex_array;
 	rd->base.set_vertex_array = &set_vertex_array;

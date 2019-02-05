@@ -1,6 +1,42 @@
 #include <mrl/render_device.h>
 #include <mgl/error.h>
 
+MRL_API mrl_error_t mrl_create_index_buffer(mrl_render_device_t * rd, mrl_index_buffer_t ** ib, mrl_index_buffer_desc_t * desc)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && ib != NULL && desc != NULL);
+	return rd->create_index_buffer(rd, ib, desc);
+}
+
+MRL_API void mrl_destroy_index_buffer(mrl_render_device_t * rd, mrl_index_buffer_t * ib)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && ib != NULL);
+	rd->destroy_index_buffer(rd, ib);
+}
+
+MRL_API void mrl_set_index_buffer(mrl_render_device_t * rd, mrl_index_buffer_t * ib)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && ib != NULL);
+	rd->set_index_buffer(rd, ib);
+}
+
+MRL_API void * mrl_map_index_buffer(mrl_render_device_t * rd, mrl_index_buffer_t * ib)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && ib != NULL);
+	return rd->map_index_buffer(rd, ib);
+}
+
+MRL_API void mrl_unmap_index_buffer(mrl_render_device_t * rd, mrl_index_buffer_t * ib)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && ib != NULL);
+	rd->unmap_index_buffer(rd, ib);
+}
+
+MRL_API void mrl_update_index_buffer(mrl_render_device_t * rd, mrl_index_buffer_t * ib, mgl_u64_t offset, mgl_u64_t size, const void * data)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && ib != NULL && data != NULL);
+	rd->update_index_buffer(rd, ib, offset, size, data);
+}
+
 MRL_API mrl_error_t mrl_create_vertex_buffer(mrl_render_device_t * rd, mrl_vertex_buffer_t ** vb, mrl_vertex_buffer_desc_t * desc)
 {
 	MGL_DEBUG_ASSERT(rd != NULL && vb != NULL && desc != NULL);
@@ -11,6 +47,24 @@ MRL_API void mrl_destroy_vertex_buffer(mrl_render_device_t * rd, mrl_vertex_buff
 {
 	MGL_DEBUG_ASSERT(rd != NULL && vb != NULL);
 	rd->destroy_vertex_buffer(rd, vb);
+}
+
+MRL_API void * mrl_map_vertex_buffer(mrl_render_device_t * rd, mrl_vertex_buffer_t * vb)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && vb != NULL);
+	return rd->map_vertex_buffer(rd, vb);
+}
+
+MRL_API void mrl_unmap_vertex_buffer(mrl_render_device_t * rd, mrl_vertex_buffer_t * vb)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && vb != NULL);
+	rd->unmap_vertex_buffer(rd, vb);
+}
+
+MRL_API void mrl_update_vertex_buffer(mrl_render_device_t * rd, mrl_vertex_buffer_t * vb, mgl_u64_t offset, mgl_u64_t size, const void * data)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && vb != NULL && data != NULL);
+	rd->update_vertex_buffer(rd, vb, offset, size, data);
 }
 
 MRL_API mrl_error_t mrl_create_vertex_array(mrl_render_device_t * rd, mrl_vertex_array_t ** va, mrl_vertex_array_desc_t * desc)
