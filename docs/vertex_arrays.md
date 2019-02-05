@@ -14,7 +14,7 @@ Contains the description used to create a vertex array.
 
 Members:
 
- - `mgl_u32_t vertex_element_count;`- Number of vertex buffers used on this vertex array.
+ - `mgl_u32_t vertex_element_count;`- Number of vertex elements used on this vertex array.
  - `mgl_u32_t vertex_buffer_count;`- Number of vertex buffers used on this vertex array.
  - `mrl_vertex_element_t vertex_elements[MRL_MAX_VERTEX_ARRAY_ELEMENT_COUNT];`- Vertex elements used on this vertex array.
  - `mrl_vertex_buffer_t* vertex_buffers[MRL_MAX_VERTEX_ARRAY_BUFFER_COUNT]`; - Vertex buffers used on this vertex array.

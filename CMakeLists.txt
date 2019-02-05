@@ -11,10 +11,6 @@ set(MRL_SOURCE
 	"src/mrl/error.c"
 	"src/mrl/render_device.c"
 	"src/mrl/ogl_330_render_device.c"
-	"src/mrl/shader/lexer.c"
-	"src/mrl/shader/parser.c"
-	"src/mrl/shader/translator.c"
-	"src/mrl/shader/glsl_330_writer.c"
 )
 
 set(MRL_INCLUDE
@@ -22,10 +18,6 @@ set(MRL_INCLUDE
 	"include/mrl/error.h"
 	"include/mrl/render_device.h"
 	"include/mrl/ogl_330_render_device.h"
-	"include/mrl/shader/lexer.h"
-	"include/mrl/shader/parser.h"
-	"include/mrl/shader/translator.h"
-	"include/mrl/shader/glsl_330_writer.h"
 )
 
 #####################################################
