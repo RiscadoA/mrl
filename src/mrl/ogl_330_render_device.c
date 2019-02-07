@@ -35,6 +35,12 @@ typedef struct
 		{
 			mgl_pool_allocator_t pool;
 			mgl_u8_t* data;
+		} constant_buffer;
+
+		struct
+		{
+			mgl_pool_allocator_t pool;
+			mgl_u8_t* data;
 		} index_buffer;
 
 		struct
@@ -74,6 +80,11 @@ typedef struct
 typedef struct
 {
 	GLuint id;
+} mrl_ogl_330_constant_buffer_t;
+
+typedef struct
+{
+	GLuint id;
 	GLenum format;
 } mrl_ogl_330_index_buffer_t;
 
@@ -92,10 +103,188 @@ typedef struct
 	GLuint id;
 } mrl_ogl_330_shader_stage_t;
 
+#define MRL_OGL_330_SHADER_BINDING_POINT_MAX_NAME_SIZE 32
+#define MRL_OGL_330_SHADER_MAX_BINDING_POINT_COUNT 32
+
+typedef struct mrl_ogl_330_shader_pipeline_t mrl_ogl_330_shader_pipeline_t;
+
 typedef struct
 {
+	mgl_chr8_t name[MRL_OGL_330_SHADER_BINDING_POINT_MAX_NAME_SIZE];
+	GLint loc;
+	mrl_ogl_330_shader_pipeline_t* pp;
+} mrl_ogl_330_shader_binding_point_t;
+
+struct mrl_ogl_330_shader_pipeline_t
+{
 	GLuint id;
-} mrl_ogl_330_shader_pipeline_t;
+	mrl_ogl_330_shader_binding_point_t bps[MRL_OGL_330_SHADER_MAX_BINDING_POINT_COUNT];
+};
+
+// ---------- Constant buffers ----------
+
+static mrl_error_t create_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t** ib, mrl_constant_buffer_desc_t* desc)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+
+	// Check for invalid input
+	if (desc->usage == MRL_CONSTANT_BUFFER_USAGE_STATIC && desc->data == NULL)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create constant buffer: when the usage mode is set to static, the pointer to the initial data must not be NULL");
+		return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	// Get usage
+	GLenum usage;
+
+	if (desc->usage == MRL_CONSTANT_BUFFER_USAGE_DEFAULT)
+		usage = GL_STATIC_DRAW;
+	else if (desc->usage == MRL_CONSTANT_BUFFER_USAGE_STATIC)
+		usage = GL_STATIC_DRAW;
+	else if (desc->usage == MRL_CONSTANT_BUFFER_USAGE_DYNAMIC)
+		usage = GL_DYNAMIC_DRAW;
+	else if (desc->usage == MRL_CONSTANT_BUFFER_USAGE_STREAM)
+		usage = GL_STREAM_DRAW;
+	else
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create constant buffer: invalid usage mode");
+		return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	// Initialize constant buffer
+	GLuint id;
+	glGenBuffers(1, &id);
+	glBindBuffer(GL_UNIFORM_BUFFER, id);
+	if (desc->data == NULL)
+		glBufferData(GL_UNIFORM_BUFFER, desc->size, NULL, usage);
+	else
+		glBufferData(GL_UNIFORM_BUFFER, desc->size, desc->data, usage);
+
+	// Allocate object
+	mrl_ogl_330_constant_buffer_t* obj;
+	mgl_error_t err = mgl_allocate(
+		&rd->memory.constant_buffer.pool,
+		sizeof(*obj),
+		(void**)&obj);
+	if (err != MGL_ERROR_NONE)
+	{
+		glDeleteBuffers(1, &id);
+		return mrl_make_mgl_error(err);
+	}
+
+	// Store constant buffer info
+	obj->id = id;
+	*ib = (mrl_constant_buffer_t*)obj;
+
+	return MRL_ERROR_NONE;
+}
+
+static void destroy_constant_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t* ib)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)ib;
+
+	// Delete constant buffer
+	glDeleteBuffers(1, &obj->id);
+
+	// Deallocate object
+	mgl_deallocate(
+		&rd->memory.constant_buffer.pool,
+		obj);
+}
+
+static void bind_constant_buffer(mrl_render_device_t* brd, mrl_shader_binding_point_t* bp, mrl_constant_buffer_t* ib)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)ib;
+	mrl_ogl_330_shader_binding_point_t* rbp = (mrl_ogl_330_shader_binding_point_t*)bp;
+
+	// Bind constant buffer
+	glBindBufferBase(GL_UNIFORM_BUFFER, rbp->loc, obj->id);
+}
+
+static void* map_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t* ib)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)ib;
+
+	// Map UBO
+	glBindBuffer(GL_UNIFORM_BUFFER, obj->id);
+	return glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
+}
+
+static void unmap_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t* ib)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)ib;
+
+	// Unmap UBO
+	glBindBuffer(GL_UNIFORM_BUFFER, obj->id);
+	glUnmapBuffer(GL_UNIFORM_BUFFER);
+}
+
+static void update_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t* ib, mgl_u64_t offset, mgl_u64_t size, const void* data)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)ib;
+
+	// Update UBO
+	glBindBuffer(GL_UNIFORM_BUFFER, obj->id);
+	glBufferSubData(GL_UNIFORM_BUFFER, offset, size, data);
+}
+
+static void query_constant_buffer_structure(mrl_render_device_t* brd, mrl_shader_binding_point_t* bp, mrl_constant_buffer_structure_t* cbs)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_shader_binding_point_t* obj = (mrl_ogl_330_shader_binding_point_t*)bp;
+
+	cbs->element_count = 0;
+
+	GLint data_size = 0;
+	glGetActiveUniformBlockiv(obj->pp->id, obj->loc, GL_UNIFORM_BLOCK_DATA_SIZE, &data_size);
+	cbs->size = data_size;
+
+	GLint element_count = 0;
+	glGetActiveUniformBlockiv(obj->pp->id, obj->loc, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &element_count);
+	cbs->element_count = element_count;
+	
+	MGL_DEBUG_ASSERT(cbs->element_count <= MRL_MAX_CONSTANT_BUFFER_ELEMENT_COUNT);
+
+	GLint element_indices[MRL_MAX_CONSTANT_BUFFER_ELEMENT_COUNT];
+	glGetActiveUniformBlockiv(obj->pp->id, obj->loc, GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES, element_indices);
+
+	for (mgl_u64_t i = 0; i < element_count; ++i)
+	{
+		// Get name
+		mgl_chr8_t element_name[128];
+
+		GLint name_len;
+		glGetActiveUniformsiv(obj->pp->id, 1, &element_indices[i], GL_UNIFORM_NAME_LENGTH, &name_len);
+		MGL_DEBUG_ASSERT(name_len <= 128);
+		glGetActiveUniformName(obj->pp->id, element_indices[i], sizeof(element_name), NULL, element_name);
+
+		mgl_u64_t name_offset;
+		for (name_offset = 0; name_offset < 128; ++name_offset)
+			if (element_name[name_offset] == '.')
+				break;
+		name_offset += 1;
+		mgl_str_copy(element_name + name_offset, cbs->elements[i].name, MRL_MAX_CONSTANT_BUFFER_ELEMENT_NAME_SIZE);
+
+		// Get array stride, buffer offset and array size
+		GLint stride, offset, size;
+		glGetActiveUniformsiv(obj->pp->id, 1, &element_indices[i], GL_UNIFORM_ARRAY_STRIDE, &stride);
+		glGetActiveUniformsiv(obj->pp->id, 1, &element_indices[i], GL_UNIFORM_OFFSET, &offset);
+		glGetActiveUniformsiv(obj->pp->id, 1, &element_indices[i], GL_UNIFORM_SIZE, &size);
+
+		cbs->elements[i].array_stride = stride;
+		cbs->elements[i].offset = offset;
+		cbs->elements[i].size = size;
+	}
+}
+
+// ---------- Index buffers ----------
 
 static mrl_error_t create_index_buffer(mrl_render_device_t* brd, mrl_index_buffer_t** ib, mrl_index_buffer_desc_t* desc)
 {
@@ -542,6 +731,11 @@ static mrl_error_t create_shader_pipeline(mrl_render_device_t* brd, mrl_shader_p
 	// Store pipeline info
 	obj->id = id;
 	*pipeline = (mrl_shader_pipeline_t*)obj;
+	for (mgl_u64_t i = 0; i < MRL_OGL_330_SHADER_MAX_BINDING_POINT_COUNT; ++i)
+	{
+		obj->bps[i].pp = obj;
+		obj->bps[i].loc = -1;
+	}
 
 	return MRL_ERROR_NONE;
 }
@@ -567,6 +761,48 @@ static void set_shader_pipeline(mrl_render_device_t* brd, mrl_shader_pipeline_t*
 
 	// Set program
 	glUseProgram(obj->id);
+}
+
+static mrl_shader_binding_point_t* get_shader_binding_point(mrl_render_device_t* brd, mrl_shader_pipeline_t* pipeline, const mgl_chr8_t* name)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_shader_pipeline_t* obj = (mrl_ogl_330_shader_pipeline_t*)pipeline;
+
+	// Get binding point
+	mrl_ogl_330_shader_binding_point_t* free_bp = NULL;
+	for (mgl_u64_t i = 0; i < MRL_OGL_330_SHADER_MAX_BINDING_POINT_COUNT; ++i)
+	{
+		if (obj->bps[i].loc == -1)
+		{
+			free_bp = &obj->bps[i];
+			continue;
+		}
+
+		if (mgl_str_equal(name, obj->bps[i].name))
+			return (mrl_shader_binding_point_t*)&obj->bps[i];
+	}
+
+	// Add binding point
+	GLint loc = glGetUniformLocation(obj->id, name);
+	if (loc == -1)
+	{
+		loc = (GLint)glGetUniformBlockIndex(obj->id, name);
+		glUniformBlockBinding(obj->id, (GLuint)loc, (GLuint)loc);
+			if (loc == GL_INVALID_INDEX)
+			return NULL;
+	}
+
+	// Check if there are still free binding points
+	if (free_bp == NULL)
+	{
+		MGL_DEBUG_ASSERT(MGL_FALSE); // Too many binding points
+		return NULL;
+	}
+
+	mgl_str_copy(name, free_bp->name, MRL_OGL_330_SHADER_BINDING_POINT_MAX_NAME_SIZE);
+	free_bp->loc = loc;
+
+	return (mrl_shader_binding_point_t*)free_bp;
 }
 
 // --------- Draw functions ----------
@@ -691,8 +927,26 @@ static mrl_error_t create_rd_allocators(mrl_ogl_330_render_device_t* rd, const m
 		rd->memory.index_buffer.data,
 		MGL_POOL_ALLOCATOR_SIZE(desc->max_index_buffer_count, sizeof(mrl_ogl_330_index_buffer_t)));
 
+	// Create constant buffer pool
+	err = mgl_allocate(
+		rd->allocator,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_constant_buffer_count, sizeof(mrl_ogl_330_constant_buffer_t)),
+		(void**)&rd->memory.constant_buffer.data);
+	if (err != MGL_ERROR_NONE)
+		goto mgl_error_6;
+	mgl_init_pool_allocator(
+		&rd->memory.constant_buffer.pool,
+		desc->max_constant_buffer_count,
+		sizeof(mrl_ogl_330_constant_buffer_t),
+		rd->memory.constant_buffer.data,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_constant_buffer_count, sizeof(mrl_ogl_330_constant_buffer_t)));
+
 	return MRL_ERROR_NONE;
 
+//mgl_error_7:
+//	mgl_deallocate(rd->allocator, rd->memory.constant_buffer.data);
+mgl_error_6:
+	mgl_deallocate(rd->allocator, rd->memory.index_buffer.data);
 mgl_error_5:
 	mgl_deallocate(rd->allocator, rd->memory.vertex_array.data);
 mgl_error_4:
@@ -707,6 +961,7 @@ mgl_error_1:
 
 static void destroy_rd_allocators(mrl_ogl_330_render_device_t* rd)
 {
+	mgl_deallocate(rd->allocator, rd->memory.constant_buffer.data);
 	mgl_deallocate(rd->allocator, rd->memory.index_buffer.data);
 	mgl_deallocate(rd->allocator, rd->memory.vertex_buffer.data);
 	mgl_deallocate(rd->allocator, rd->memory.vertex_array.data);
@@ -716,6 +971,15 @@ static void destroy_rd_allocators(mrl_ogl_330_render_device_t* rd)
 
 static void set_rd_functions(mrl_ogl_330_render_device_t* rd)
 {
+	// Constant buffer functions
+	rd->base.create_constant_buffer = &create_constant_buffer;
+	rd->base.destroy_constant_buffer = &destroy_constant_buffer;
+	rd->base.bind_constant_buffer = &bind_constant_buffer;
+	rd->base.map_constant_buffer = &map_constant_buffer;
+	rd->base.unmap_constant_buffer = &unmap_constant_buffer;
+	rd->base.update_constant_buffer = &update_constant_buffer;
+	rd->base.query_constant_buffer_structure = &query_constant_buffer_structure;
+
 	// Index buffer functions
 	rd->base.create_index_buffer = &create_index_buffer;
 	rd->base.destroy_index_buffer = &destroy_index_buffer;
@@ -742,6 +1006,7 @@ static void set_rd_functions(mrl_ogl_330_render_device_t* rd)
 	rd->base.create_shader_pipeline = &create_shader_pipeline;
 	rd->base.destroy_shader_pipeline = &destroy_shader_pipeline;
 	rd->base.set_shader_pipeline = &set_shader_pipeline;
+	rd->base.get_shader_binding_point = &get_shader_binding_point;
 
 	// Draw functions
 	rd->base.clear_color = &clear_color;

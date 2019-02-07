@@ -1,6 +1,48 @@
 #include <mrl/render_device.h>
 #include <mgl/error.h>
 
+MRL_API mrl_error_t mrl_create_constant_buffer(mrl_render_device_t * rd, mrl_constant_buffer_t ** cb, mrl_constant_buffer_desc_t * desc)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && cb != NULL && desc != NULL);
+	return rd->create_constant_buffer(rd, cb, desc);
+}
+
+MRL_API void mrl_destroy_constant_buffer(mrl_render_device_t * rd, mrl_constant_buffer_t * cb)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && cb != NULL);
+	rd->destroy_constant_buffer(rd, cb);
+}
+
+MRL_API void mrl_bind_constant_buffer(mrl_render_device_t * rd, mrl_shader_binding_point_t * bp, mrl_constant_buffer_t * cb)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && bp != NULL);
+	rd->bind_constant_buffer(rd, bp, cb);
+}
+
+MRL_API void * mrl_map_constant_buffer(mrl_render_device_t * rd, mrl_constant_buffer_t * cb)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && cb != NULL);
+	return rd->map_constant_buffer(rd, cb);
+}
+
+MRL_API void mrl_unmap_constant_buffer(mrl_render_device_t * rd, mrl_constant_buffer_t * cb)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && cb != NULL);
+	rd->unmap_constant_buffer(rd, cb);
+}
+
+MRL_API void mrl_update_constant_buffer(mrl_render_device_t * rd, mrl_constant_buffer_t * cb, mgl_u64_t offset, mgl_u64_t size, const void * data)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && cb != NULL && data != NULL);
+	rd->update_constant_buffer(rd, cb, offset, size, data);
+}
+
+MRL_API void mrl_query_constant_buffer_structure(mrl_render_device_t * rd, mrl_shader_binding_point_t * bp, mrl_constant_buffer_structure_t * cbs)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && bp != NULL && cbs != NULL);
+	rd->query_constant_buffer_structure(rd, bp, cbs);
+}
+
 MRL_API mrl_error_t mrl_create_index_buffer(mrl_render_device_t * rd, mrl_index_buffer_t ** ib, mrl_index_buffer_desc_t * desc)
 {
 	MGL_DEBUG_ASSERT(rd != NULL && ib != NULL && desc != NULL);
@@ -113,6 +155,12 @@ MRL_API void mrl_set_shader_pipeline(mrl_render_device_t * rd, mrl_shader_pipeli
 {
 	MGL_DEBUG_ASSERT(rd != NULL && pipeline != NULL);
 	rd->set_shader_pipeline(rd, pipeline);
+}
+
+MRL_API mrl_shader_binding_point_t * mrl_get_shader_binding_point(mrl_render_device_t * rd, mrl_shader_pipeline_t * pipeline, const mgl_chr8_t * name)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && pipeline != NULL && name != NULL);
+	return rd->get_shader_binding_point(rd, pipeline, name);
 }
 
 MRL_API void mrl_clear_color(mrl_render_device_t * rd, mgl_f32_t r, mgl_f32_t g, mgl_f32_t b, mgl_f32_t a)

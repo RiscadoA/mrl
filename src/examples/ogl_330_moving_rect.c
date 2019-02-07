@@ -18,8 +18,16 @@ struct
 		mrl_shader_stage_t* vertex;
 		mrl_shader_stage_t* pixel;
 		mrl_shader_pipeline_t* pipeline;
+
+		mrl_shader_binding_point_t* cb_bp;
 	} shader;
 	
+	struct
+	{
+		mgl_u64_t color_offset;
+	} cb_struct;
+
+	mrl_constant_buffer_t* cbo;
 	mrl_index_buffer_t* ibo;
 	mrl_vertex_buffer_t* vbo;
 	mrl_vertex_array_t* vao;
@@ -89,8 +97,9 @@ void load(void)
 			"#version 330 core\n"
 			"in vec4 frag_color;"
 			"out vec4 color;"
+			"uniform material_cb { vec4 color; } material;"
 			"void main() {"
-			"	color = frag_color;"
+			"	color = frag_color * material.color;"
 			"}";
 
 		handle_error(mrl_create_shader_stage(app.rd, &app.shader.pixel, &desc), u8"Failed to create pixel shader stage");
@@ -103,6 +112,25 @@ void load(void)
 		desc.pixel = app.shader.pixel;
 
 		handle_error(mrl_create_shader_pipeline(app.rd, &app.shader.pipeline, &desc), u8"Failed to create shader pipeline");
+	}
+
+	// Get CB BP
+	app.shader.cb_bp = mrl_get_shader_binding_point(app.rd, app.shader.pipeline, u8"material_cb");
+
+	// Init CBO
+	{
+		mrl_constant_buffer_structure_t cbs;
+		mrl_query_constant_buffer_structure(app.rd, app.shader.cb_bp, &cbs);
+
+		MGL_DEBUG_ASSERT(mgl_str_equal(u8"color", cbs.elements[0].name));
+		app.cb_struct.color_offset = cbs.elements[0].offset;
+
+		mrl_constant_buffer_desc_t desc = MRL_DEFAULT_CONSTANT_BUFFER_DESC;
+		desc.data = NULL;
+		desc.size = cbs.size;
+		desc.usage = MRL_CONSTANT_BUFFER_USAGE_DYNAMIC;
+
+		handle_error(mrl_create_constant_buffer(app.rd, &app.cbo, &desc), u8"Failed to create constant buffer");
 	}
 
 	// Init IBO
@@ -177,6 +205,9 @@ void unload(void)
 	// Terminate index buffer
 	mrl_destroy_index_buffer(app.rd, app.ibo);
 
+	// Terminate constant buffer
+	mrl_destroy_constant_buffer(app.rd, app.cbo);
+
 	// Terminate shader pipeline
 	mrl_destroy_shader_stage(app.rd, app.shader.pipeline);
 
@@ -211,7 +242,16 @@ int main(int argc, char** argv)
 		handle_error(mgl_open_windows_window(&app.window, &settings), u8"mgl_open_windows_window() failed");
 
 		// Add on window close callback
-		handle_error(mrl_make_mgl_error(mgl_add_action_callback(&input_manager, mgl_get_window_action(&app.window, MGL_WINDOW_CLOSE), &on_window_close)), u8"mgl_add_action_callback() failed");
+		handle_error(
+			mrl_make_mgl_error(
+				mgl_add_action_callback(
+					&input_manager,
+					mgl_get_window_action(&app.window, MGL_WINDOW_CLOSE),
+					&on_window_close
+				)
+			),
+			u8"mgl_add_action_callback() failed"
+		);
 	}
 
 	load();
@@ -238,6 +278,17 @@ int main(int argc, char** argv)
 		mgl_poll_window_events(&app.window);
 
 		mrl_clear_color(app.rd, 0.0f, 0.4f, 0.8f, 1.0f);
+
+		// Update constant buffer
+		{
+			mgl_chr8_t* data = (mgl_chr8_t*)mrl_map_constant_buffer(app.rd, app.cbo);
+			mgl_f32_t* color = (mgl_f32_t*)data + app.cb_struct.color_offset;
+			color[0] = 0.5f + change;
+			color[1] = 0.5f - change;
+			color[2] = 0.5f + change;
+			color[3] = 1.0f;
+			mrl_unmap_constant_buffer(app.rd, app.cbo);
+		}
 
 		// Update vertex buffer
 		{
@@ -272,6 +323,7 @@ int main(int argc, char** argv)
 		mrl_set_shader_pipeline(app.rd, app.shader.pipeline);
 		mrl_set_index_buffer(app.rd, app.ibo);
 		mrl_set_vertex_array(app.rd, app.vao);
+		mrl_bind_constant_buffer(app.rd, app.shader.cb_bp, app.cbo);
 		mrl_draw_triangles_indexed(app.rd, 0, 6);
 
 		mrl_swap_buffers(app.rd);
