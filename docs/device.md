@@ -4,18 +4,21 @@ The graphics backend device is responsible for creating and managing all GPU obj
 
 The following object types are supported:
 
-- Vertex arrays.
-- Vertex buffers.
-- Index buffers.
-- 1D Textures.
-- 2D Textures.
-- 3D Textures.
-- Cubemaps.
-- Framebuffers.
-- Blend states.
-- Depth stencil states.
-- Rasterizer states.
-- Shader pipelines.
+- [x] Vertex arrays.
+- [x] Vertex buffers.
+- [x] Index buffers.
+- [x] Constant buffers.
+- [ ] Samplers.
+- [ ] 1D Textures.
+- [ ] 2D Textures.
+- [ ] 3D Textures.
+- [ ] Cubemaps.
+- [ ] Framebuffers.
+- [ ] Blend states.
+- [ ] Depth stencil states.
+- [ ] Rasterizer states.
+- [x] Shader stages.
+- [x] Shader pipelines.
 
 ## Underlying APIs
 
@@ -23,8 +26,8 @@ A graphics backend can be swapped by another one which is implemented by another
 
 The planned support APIs are (in order of priority):
 
-- OpenGL 3.3.
-- Vulkan 1.0.
-- DirectX 11.
-- Metal.
+- [x] OpenGL 3.3.
+- [ ] DirectX 11.
+- [ ] Vulkan 1.0.
+- [ ] Metal.
 

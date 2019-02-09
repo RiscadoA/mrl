@@ -10,6 +10,19 @@ extern "C" {
 	typedef void(*mrl_render_device_hint_error_callback_t)(mrl_error_t error, const mgl_chr8_t* msg);
 
 	typedef struct mrl_hint_t mrl_hint_t;
+	typedef struct mrl_framebuffer_desc_t mrl_framebuffer_desc_t;
+	typedef struct mrl_blend_state_desc_t mrl_blend_state_desc_t;
+	typedef struct mrl_depth_stencil_state_desc_t mrl_depth_stencil_state_desc_t;
+	typedef struct mrl_sampler_desc_t mrl_sampler_desc_t;
+	typedef struct mrl_raster_state_desc_t mrl_raster_state_desc_t;
+	typedef struct mrl_texture_1d_desc_t mrl_texture_1d_desc_t;
+	typedef struct mrl_texture_1d_update_desc_t mrl_texture_1d_update_desc_t;
+	typedef struct mrl_texture_2d_desc_t mrl_texture_2d_desc_t;
+	typedef struct mrl_texture_2d_update_desc_t mrl_texture_2d_update_desc_t;
+	typedef struct mrl_texture_3d_desc_t mrl_texture_3d_desc_t;
+	typedef struct mrl_texture_3d_update_desc_t mrl_texture_3d_update_desc_t;
+	typedef struct mrl_cube_map_desc_t mrl_cube_map_desc_t;
+	typedef struct mrl_cube_map_update_desc_t mrl_cube_map_update_desc_t;
 	typedef struct mrl_constant_buffer_structure_element_t mrl_constant_buffer_structure_element_t;
 	typedef struct mrl_constant_buffer_structure_t mrl_constant_buffer_structure_t;
 	typedef struct mrl_constant_buffer_desc_t mrl_constant_buffer_desc_t;
@@ -21,6 +34,15 @@ extern "C" {
 	typedef struct mrl_shader_pipeline_desc_t mrl_shader_pipeline_desc_t;
 	typedef struct mrl_render_device_desc_t mrl_render_device_desc_t;
 
+	typedef void mrl_framebuffer_t;
+	typedef void mrl_blend_state_t;
+	typedef void mrl_depth_stencil_state_t;
+	typedef void mrl_raster_state_t;
+	typedef void mrl_sampler_t;
+	typedef void mrl_texture_1d_t;
+	typedef void mrl_texture_2d_t;
+	typedef void mrl_texture_3d_t;
+	typedef void mrl_cube_map_t;
 	typedef void mrl_constant_buffer_t;
 	typedef void mrl_index_buffer_t;
 	typedef void mrl_vertex_buffer_t;
@@ -78,6 +100,800 @@ extern "C" {
 	NULL,\
 	NULL,\
 	NULL,\
+})
+
+	// ---- Sampler ----
+
+	enum
+	{
+		MRL_SAMPLER_FILTER_NONE,
+		MRL_SAMPLER_FILTER_NEAREST,
+		MRL_SAMPLER_FILTER_LINEAR,
+	};
+
+	enum
+	{
+		MRL_SAMPLER_ADDRESS_REPEAT,
+		MRL_SAMPLER_ADDRESS_MIRROR,
+		MRL_SAMPLER_ADDRESS_CLAMP,
+		MRL_SAMPLER_ADDRESS_BORDER,
+	};
+
+	struct mrl_sampler_desc_t
+	{
+		/// <summary>
+		///		Specifies the border color of the texture used by the MRL_SAMPLER_ADDRESS_BORDER address mode.
+		/// </summary>
+		mgl_f32_t border_color[4];
+
+		/// <summary>
+		///		Minifying filter.
+		///		Valid values:
+		///		- MRL_SAMPLER_FILTER_NEAREST;
+		///		- MRL_SAMPLER_FILTER_LINEAR;
+		/// </summary>
+		mgl_enum_t min_filter;
+
+		/// <summary>
+		///		Magnifying filter.
+		///		Valid values:
+		///		- MRL_SAMPLER_FILTER_NEAREST;
+		///		- MRL_SAMPLER_FILTER_LINEAR;
+		/// </summary>
+		mgl_enum_t mag_filter;
+
+		/// <summary>
+		///		Mipmapping filter.
+		///		Valid values:
+		///		- MRL_SAMPLER_FILTER_NONE: deactivates mipmapping;
+		///		- MRL_SAMPLER_FILTER_NEAREST;
+		///		- MRL_SAMPLER_FILTER_LINEAR;
+		/// </summary>
+		mgl_enum_t mip_filter;
+
+		/// <summary>
+		///		U address mode.
+		///		Valid values:
+		///		- MRL_SAMPLER_ADDRESS_REPEAT;
+		///		- MRL_SAMPLER_ADDRESS_MIRROR;
+		///		- MRL_SAMPLER_ADDRESS_CLAMP;
+		///		- MRL_SAMPLER_ADDRESS_BORDER;
+		/// </summary>
+		mgl_enum_t address_u;
+
+		/// <summary>
+		///		V address mode.
+		///		Valid values:
+		///		- MRL_SAMPLER_ADDRESS_REPEAT;
+		///		- MRL_SAMPLER_ADDRESS_MIRROR;
+		///		- MRL_SAMPLER_ADDRESS_CLAMP;
+		///		- MRL_SAMPLER_ADDRESS_BORDER;
+		/// </summary>
+		mgl_enum_t address_v;
+
+		/// <summary>
+		///		W address mode.
+		///		Valid values:
+		///		- MRL_SAMPLER_ADDRESS_REPEAT;
+		///		- MRL_SAMPLER_ADDRESS_MIRROR;
+		///		- MRL_SAMPLER_ADDRESS_CLAMP;
+		///		- MRL_SAMPLER_ADDRESS_BORDER;
+		/// </summary>
+		mgl_enum_t address_w;
+
+		/// <summary>
+		///		Max anisotropic samples used while filtering.
+		///		Set to 1 to disable anisotropic filtering.
+		///		This feature may not be supported on some GPUs, and if it is not, it will be ignored.
+		///		Valid values: 1 - MRL_MAX_ANISOTROPY. 
+		/// </summary>
+		mgl_u32_t max_anisotropy;
+
+		/// <summary>
+		///		Hint list.
+		///		Hints may be ignored by some render devices.
+		///		Optional (can be NULL).
+		/// </summary>
+		const mrl_hint_t* hints;
+	};
+
+#define MRL_DEFAULT_SAMPLER_DESC ((mrl_sampler_desc_t) {\
+	{ 0.0f, 0.0f, 0.0f, 0.0f },\
+	MRL_SAMPLER_FILTER_NEAREST,\
+	MRL_SAMPLER_FILTER_NEAREST,\
+	MRL_SAMPLER_FILTER_NONE,\
+	MRL_SAMPLER_ADDRESS_REPEAT,\
+	MRL_SAMPLER_ADDRESS_MIRROR,\
+	MRL_SAMPLER_ADDRESS_CLAMP,\
+	MRL_SAMPLER_ADDRESS_BORDER,\
+	1,\
+	NULL,\
+})
+
+
+	// ---- Texture formats ----
+
+	enum
+	{
+		/// <summary>
+		///		8-bits normalized unsigned integer R color component.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_R8_UN,
+
+		/// <summary>
+		///		8-bits normalized signed integer R color component.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_R8_SN,
+
+		/// <summary>
+		///		8-bits unsigned integer R color component.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_R8_UI,
+
+		/// <summary>
+		///		8-bits signed integer R color component.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_R8_SI,
+
+		/// <summary>
+		///		8-bits normalized unsigned integer RG color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RG8_UN,
+
+		/// <summary>
+		///		8-bits normalized signed integer RG color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RG8_SN,
+
+		/// <summary>
+		///		8-bits unsigned integer RG color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RG8_UI,
+
+		/// <summary>
+		///		8-bits signed integer RG color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RG8_SI,
+
+		/// <summary>
+		///		8-bits normalized unsigned integer RGBA color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RGBA8_UN,
+
+		/// <summary>
+		///		8-bits normalized signed integer RGBA color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RGBA8_SN,
+
+		/// <summary>
+		///		8-bits unsigned integer RGBA color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RGBA8_UI,
+
+		/// <summary>
+		///		8-bits signed integer RGBA color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RGBA8_SI,
+
+		/// <summary>
+		///		16-bits normalized unsigned integer R color component.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_R16_UN,
+
+		/// <summary>
+		///		16-bits normalized signed integer R color component.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_R16_SN,
+
+		/// <summary>
+		///		16-bits unsigned integer R color component.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_R16_UI,
+
+		/// <summary>
+		///		16-bits signed integer R color component.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_R16_SI,
+
+		/// <summary>
+		///		16-bits normalized unsigned integer RG color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RG16_UN,
+
+		/// <summary>
+		///		16-bits normalized signed integer RG color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RG16_SN,
+
+		/// <summary>
+		///		16-bits unsigned integer RG color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RG16_UI,
+
+		/// <summary>
+		///		16-bits signed integer RG color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RG16_SI,
+
+		/// <summary>
+		///		16-bits normalized unsigned integer RGBA color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RGBA16_UN,
+
+		/// <summary>
+		///		16-bits normalized signed integer RGBA color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RGBA16_SN,
+
+		/// <summary>
+		///		16-bits unsigned integer RGBA color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RGBA16_UI,
+
+		/// <summary>
+		///		16-bits signed integer RGBA color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RGBA16_SI,
+
+		/// <summary>
+		///		32-bits unsigned integer R color component.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_R32_UI,
+
+		/// <summary>
+		///		32-bits signed integer R color component.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_R32_SI,
+
+		/// <summary>
+		///		32-bits floating point R color component.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_R32_F,
+
+		/// <summary>
+		///		32-bits unsigned integer RG color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RG32_UI,
+
+		/// <summary>
+		///		32-bits signed integer RG color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RG32_SI,
+
+		/// <summary>
+		///		32-bits floating point RG color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RG32_F,
+
+		/// <summary>
+		///		32-bits unsigned integer RGBA color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RGBA32_UI,
+
+		/// <summary>
+		///		32-bits signed integer RGBA color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RGBA32_SI,
+
+		/// <summary>
+		///		32-bits floating point RGBA color components.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_RGBA32_F,
+
+		/// <summary>
+		///		16-bits depth value.
+		///		This format can only be used on 2D textures.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_D16,
+
+		/// <summary>
+		///		32-bits depth value.
+		///		This format can only be used on 2D textures.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_D32,
+
+		/// <summary>
+		///		24-bits depth value.
+		///		8-bits stencil value.
+		///		This format can only be used on 2D textures.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_D24S8,
+
+		/// <summary>
+		///		These textures cannot be manually updated.
+		///		32-bits depth value.
+		///		8-bits stencil value.
+		///		This format can only be used on 2D textures.
+		/// </summary>
+		MRL_TEXTURE_FORMAT_D32S8,
+
+	};
+
+	// ---- Texture usage modes ----
+
+	enum
+	{
+		/// <summary>
+		///		Default texture usage mode.
+		/// </summary>
+		MRL_TEXTURE_USAGE_DEFAULT,
+
+		/// <summary>
+		///		The texture can be used as a render target.
+		/// </summary>
+		MRL_TEXTURE_USAGE_RENDER_TARGET,
+	};
+
+#define MRL_MAX_MIP_LEVEL_COUNT 16
+
+	// ---- Texture 1D ----
+
+
+	struct mrl_texture_1d_desc_t
+	{
+		/// <summary>
+		///		Initial texture data.
+		///		To initialize a texture with NULL data, just set the pointer to NULL.
+		///		Each member of the array points to a mip level, being the first member the 0th mip level.
+		///		Each mip level has half of the side of the previous one.
+		/// </summary>
+		const void* data[MRL_MAX_MIP_LEVEL_COUNT];
+
+		/// <summary>
+		///		Texture mip level count.
+		///		Valid values: 1 - MRL_MAX_MIP_LEVEL_COUNT;
+		/// </summary>
+		mgl_u32_t mip_level_count;
+
+		/// <summary>
+		///		Texture width.
+		/// </summary>
+		mgl_u64_t width;
+
+		/// <summary>
+		///		Texture usage mode.
+		///		Valid values:
+		///		- MRL_TEXTURE_USAGE_DEFAULT;
+		///		- MRL_TEXTURE_USAGE_RENDER_TARGET;
+		/// </summary>
+		mgl_enum_t usage;
+
+		/// <summary>
+		///		Texture data format.
+		///		Valid values:
+		///			- All R, RG, RGBA formats except the depth and stencil component formats.
+		/// </summary>
+		mgl_enum_t format;
+
+		/// <summary>
+		///		Hint list.
+		///		Hints may be ignored by some render devices.
+		///		Optional (can be NULL).
+		/// </summary>
+		const mrl_hint_t* hints;
+	};
+
+#define MRL_DEFAULT_TEXTURE_1D_DESC ((mrl_texture_1d_desc_t) {\
+	{ NULL },\
+	1,\
+	256,\
+	MRL_TEXTURE_USAGE_DEFAULT,\
+	MRL_TEXTURE_FORMAT_RGBA32_F,\
+	NULL,\
+})
+
+	struct mrl_texture_1d_update_desc_t
+	{
+		/// <summary>
+		///		New texture data.
+		/// </summary>
+		const void* data;
+
+		/// <summary>
+		///		New data width.
+		/// </summary>
+		mgl_u64_t width;
+
+		/// <summary>
+		///		Destination X coordinate.
+		/// </summary>
+		mgl_u64_t dst_x;
+
+		/// <summary>
+		///		Mip level to update.
+		///		Valid values: 1 - MRL_MAX_MIP_LEVEL_COUNT;
+		/// </summary>
+		mgl_u32_t mip_level;
+	};
+
+#define MRL_DEFAULT_TEXTURE_1D_UPDATE_DESC ((mrl_texture_1d_update_desc_t) {\
+	NULL,\
+	1,\
+	0,\
+	1,\
+})
+
+	// ---- Texture 2D ----
+
+	struct mrl_texture_2d_desc_t
+	{
+		/// <summary>
+		///		Initial texture data.
+		///		To initialize a texture with NULL data, just set the pointer to NULL.
+		///		Each member of the array points to a mip level, being the first member the 0th mip level.
+		///		Each mip level has half of the side of the previous one.
+		/// </summary>
+		const void* data[MRL_MAX_MIP_LEVEL_COUNT];
+
+		/// <summary>
+		///		Texture mip level count.
+		///		Valid values: 1 - MRL_MAX_MIP_LEVEL_COUNT;
+		/// </summary>
+		mgl_u32_t mip_level_count;
+
+		/// <summary>
+		///		Texture width.
+		/// </summary>
+		mgl_u64_t width;
+
+		/// <summary>
+		///		Texture height.
+		/// </summary>
+		mgl_u64_t height;
+
+		/// <summary>
+		///		Texture usage mode.
+		///		Valid values:
+		///		- MRL_TEXTURE_USAGE_DEFAULT;
+		///		- MRL_TEXTURE_USAGE_RENDER_TARGET;
+		/// </summary>
+		mgl_enum_t usage;
+
+		/// <summary>
+		///		Texture data format.
+		///		Valid values:
+		///			- All texture formats.
+		/// </summary>
+		mgl_enum_t format;
+
+		/// <summary>
+		///		Hint list.
+		///		Hints may be ignored by some render devices.
+		///		Optional (can be NULL).
+		/// </summary>
+		const mrl_hint_t* hints;
+	};
+
+#define MRL_DEFAULT_TEXTURE_2D_DESC ((mrl_texture_2d_desc_t) {\
+	{ NULL },\
+	1,\
+	256,\
+	256,\
+	MRL_TEXTURE_USAGE_DEFAULT,\
+	MRL_TEXTURE_FORMAT_RGBA32_F,\
+	NULL,\
+})
+
+	struct mrl_texture_2d_update_desc_t
+	{
+		/// <summary>
+		///		New texture data.
+		/// </summary>
+		const void* data;
+
+		/// <summary>
+		///		New data width.
+		/// </summary>
+		mgl_u64_t width;
+
+		/// <summary>
+		///		New data height.
+		/// </summary>
+		mgl_u64_t height;
+
+		/// <summary>
+		///		Destination X coordinate.
+		/// </summary>
+		mgl_u64_t dst_x;
+
+		/// <summary>
+		///		Destination Y coordinate.
+		/// </summary>
+		mgl_u64_t dst_y;
+
+		/// <summary>
+		///		Mip level to update.
+		///		Valid values: 1 - MRL_MAX_MIP_LEVEL_COUNT;
+		/// </summary>
+		mgl_u32_t mip_level;
+	};
+
+#define MRL_DEFAULT_TEXTURE_2D_UPDATE_DESC ((mrl_texture_2d_update_desc_t) {\
+	NULL,\
+	1,\
+	1,\
+	0,\
+	0,\
+	1,\
+})
+
+	// ---- Texture 3D ----
+
+	struct mrl_texture_3d_desc_t
+	{
+		/// <summary>
+		///		Initial texture data.
+		///		To initialize a texture with NULL data, just set the pointer to NULL.
+		///		Each member of the array points to a mip level, being the first member the 0th mip level.
+		///		Each mip level has half of the side of the previous one.
+		/// </summary>
+		const void* data[MRL_MAX_MIP_LEVEL_COUNT];
+
+		/// <summary>
+		///		Texture mip level count.
+		///		Valid values: 1 - MRL_MAX_MIP_LEVEL_COUNT;
+		/// </summary>
+		mgl_u32_t mip_level_count;
+
+		/// <summary>
+		///		Texture width.
+		/// </summary>
+		mgl_u64_t width;
+
+		/// <summary>
+		///		Texture height.
+		/// </summary>
+		mgl_u64_t height;
+
+		/// <summary>
+		///		Texture depth.
+		/// </summary>
+		mgl_u64_t depth;
+
+		/// <summary>
+		///		Texture usage mode.
+		///		Valid values:
+		///		- MRL_TEXTURE_USAGE_DEFAULT;
+		///		- MRL_TEXTURE_USAGE_RENDER_TARGET;
+		/// </summary>
+		mgl_enum_t usage;
+
+		/// <summary>
+		///		Texture data format.
+		///		Valid values:
+		///			- All R, RG, RGBA formats except the depth and stencil component formats.
+		/// </summary>
+		mgl_enum_t format;
+
+		/// <summary>
+		///		Hint list.
+		///		Hints may be ignored by some render devices.
+		///		Optional (can be NULL).
+		/// </summary>
+		const mrl_hint_t* hints;
+	};
+
+#define MRL_DEFAULT_TEXTURE_3D_DESC ((mrl_texture_3d_desc_t) {\
+	{ NULL },\
+	1,\
+	256,\
+	256,\
+	256,\
+	MRL_TEXTURE_USAGE_DEFAULT,\
+	MRL_TEXTURE_FORMAT_RGBA32_F,\
+	NULL,\
+})
+
+	struct mrl_texture_3d_update_desc_t
+	{
+		/// <summary>
+		///		New texture data.
+		/// </summary>
+		const void* data;
+
+		/// <summary>
+		///		New data width.
+		/// </summary>
+		mgl_u64_t width;
+
+		/// <summary>
+		///		New data height.
+		/// </summary>
+		mgl_u64_t height;
+
+		/// <summary>
+		///		New data depth.
+		/// </summary>
+		mgl_u64_t depth;
+
+		/// <summary>
+		///		Destination X coordinate.
+		/// </summary>
+		mgl_u64_t dst_x;
+
+		/// <summary>
+		///		Destination Y coordinate.
+		/// </summary>
+		mgl_u64_t dst_y;
+
+		/// <summary>
+		///		Destination Z coordinate.
+		/// </summary>
+		mgl_u64_t dst_z;
+
+		/// <summary>
+		///		Mip level to update.
+		///		Valid values: 1 - MRL_MAX_MIP_LEVEL_COUNT;
+		/// </summary>
+		mgl_u32_t mip_level;
+	};
+
+#define MRL_DEFAULT_TEXTURE_3D_UPDATE_DESC ((mrl_texture_3d_update_desc_t) {\
+	NULL,\
+	1,\
+	1,\
+	1,\
+	0,\
+	0,\
+	0,\
+	1,\
+})
+
+	// ---- Cube map ----
+
+	enum
+	{
+		/// <summary>
+		///		Cube map positive X face.
+		/// </summary>
+		MRL_CUBE_MAP_FACE_POSITIVE_X,
+
+		/// <summary>
+		///		Cube map negative X face.
+		/// </summary>
+		MRL_CUBE_MAP_FAEC_NEGATIVE_X,
+
+		/// <summary>
+		///		Cube map positive Y face.
+		/// </summary>
+		MRL_CUBE_MAP_FACE_POSITIVE_Y,
+
+		/// <summary>
+		///		Cube map negative Y face.
+		/// </summary>
+		MRL_CUBE_MAP_FACE_NEGATIVE_Y,
+
+		/// <summary>
+		///		Cube map positive Z face.
+		/// </summary>
+		MRL_CUBE_MAP_FACE_POSITIVE_Z,
+
+		/// <summary>
+		///		Cube map negative Z face.
+		/// </summary>
+		MRL_CUBE_MAP_FACE_NEGATIVE_Z,
+	};
+
+	struct mrl_cube_map_desc_t
+	{
+		/// <summary>
+		///		Initial cube map data.
+		///		Faces are indexed using:
+		///			MRL_CUBE_MAP_FACE_POSITIVE_X;
+		///			MRL_CUBE_MAP_FAEC_NEGATIVE_X;
+		///			MRL_CUBE_MAP_FACE_POSITIVE_Y;
+		///			MRL_CUBE_MAP_FACE_NEGATIVE_Y;
+		///			MRL_CUBE_MAP_FACE_POSITIVE_Z;
+		///			MRL_CUBE_MAP_FACE_NEGATIVE_Z;
+		///		To initialize a face with NULL data, just set the pointer to NULL.
+		///		Each member of the array of each face points to a mip level, being the first member the 0th mip level.
+		///		Each mip level has half of the side of the previous one.
+		/// </summary>
+		const void* data[6][MRL_MAX_MIP_LEVEL_COUNT];
+
+		/// <summary>
+		///		Texture mip level count.
+		///		Valid values: 1 - MRL_MAX_MIP_LEVEL_COUNT;
+		/// </summary>
+		mgl_u32_t mip_level_count;
+
+		/// <summary>
+		///		Cube map face width.
+		/// </summary>
+		mgl_u64_t width;
+
+		/// <summary>
+		///		Cube map face height.
+		/// </summary>
+		mgl_u64_t height;
+
+		/// <summary>
+		///		Texture usage mode.
+		///		Valid values:
+		///		- MRL_TEXTURE_USAGE_DEFAULT;
+		///		- MRL_TEXTURE_USAGE_RENDER_TARGET;
+		/// </summary>
+		mgl_enum_t usage;
+
+		/// <summary>
+		///		Texture data format.
+		///		Valid values:
+		///			- All R, RG, RGBA formats except the depth and stencil component formats.
+		/// </summary>
+		mgl_enum_t format;
+
+		/// <summary>
+		///		Hint list.
+		///		Hints may be ignored by some render devices.
+		///		Optional (can be NULL).
+		/// </summary>
+		const mrl_hint_t* hints;
+	};
+
+#define MRL_DEFAULT_CUBE_MAP_DESC ((mrl_cube_map_desc_t) {\
+	{ { NULL } },\
+	1,\
+	256,\
+	256,\
+	MRL_TEXTURE_USAGE_DEFAULT,\
+	MRL_TEXTURE_FORMAT_RGBA32_F,\
+	NULL,\
+})
+
+	struct mrl_cube_map_update_desc_t
+	{
+		/// <summary>
+		///		New face data.
+		/// </summary>
+		const void* data;
+
+		/// <summary>
+		///		The face which will be updated.
+		///		Valid values:
+		///			MRL_CUBE_MAP_FACE_POSITIVE_X;
+		///			MRL_CUBE_MAP_FAEC_NEGATIVE_X;
+		///			MRL_CUBE_MAP_FACE_POSITIVE_Y;
+		///			MRL_CUBE_MAP_FACE_NEGATIVE_Y;
+		///			MRL_CUBE_MAP_FACE_POSITIVE_Z;
+		///			MRL_CUBE_MAP_FACE_NEGATIVE_Z;
+		/// </summary>
+		mgl_enum_t face;
+
+		/// <summary>
+		///		New data width.
+		/// </summary>
+		mgl_u64_t width;
+
+		/// <summary>
+		///		New data height.
+		/// </summary>
+		mgl_u64_t height;
+
+		/// <summary>
+		///		Destination X coordinate.
+		/// </summary>
+		mgl_u64_t dst_x;
+
+		/// <summary>
+		///		Destination Y coordinate.
+		/// </summary>
+		mgl_u64_t dst_y;
+
+		/// <summary>
+		///		Mip level to update.
+		///		Valid values: 1 - MRL_MAX_MIP_LEVEL_COUNT;
+		/// </summary>
+		mgl_u32_t mip_level;
+	};
+
+#define MRL_DEFAULT_CUBE_MAP_UPDATE_DESC ((mrl_cube_map_update_desc_t) {\
+	NULL,\
+	MRL_CUBE_MAP_FACE_POSITIVE_X,\
+	1,\
+	1,\
+	0,\
+	0,\
+	1,\
 })
 
 	// ---- Constant buffers ----
@@ -692,8 +1508,37 @@ extern "C" {
 	typedef struct mrl_render_device_t mrl_render_device_t;
 	struct mrl_render_device_t
 	{
+		// ------- Sampler functions -------
+		mrl_error_t(*create_sampler)(mrl_render_device_t* rd, mrl_sampler_t** s, const mrl_sampler_desc_t* desc);
+		void(*destroy_sampler)(mrl_render_device_t* rd, mrl_sampler_t* s);
+		void(*bind_sampler)(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_sampler_t* s);
+
+		// ------- Texture 1D functions -------
+		mrl_error_t(*create_texture_1d)(mrl_render_device_t* rd, mrl_texture_1d_t** tex, const mrl_texture_1d_desc_t* desc);
+		void(*destroy_texture_1d)(mrl_render_device_t* rd, mrl_texture_1d_t* tex);
+		void(*bind_texture_1d)(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_texture_1d_t* tex);
+		mrl_error_t(*update_texture_1d)(mrl_render_device_t* rd, mrl_texture_1d_t* tex, const mrl_texture_1d_update_desc_t* desc);
+
+		// ------- Texture 2D functions -------
+		mrl_error_t(*create_texture_2d)(mrl_render_device_t* rd, mrl_texture_2d_t** tex, const mrl_texture_2d_desc_t* desc);
+		void(*destroy_texture_2d)(mrl_render_device_t* rd, mrl_texture_2d_t* tex);
+		void(*bind_texture_2d)(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_texture_2d_t* tex);
+		mrl_error_t(*update_texture_2d)(mrl_render_device_t* rd, mrl_texture_2d_t* tex, const mrl_texture_2d_update_desc_t* desc);
+
+		// ------- Texture 3D functions -------
+		mrl_error_t(*create_texture_3d)(mrl_render_device_t* rd, mrl_texture_3d_t** tex, const mrl_texture_3d_desc_t* desc);
+		void(*destroy_texture_3d)(mrl_render_device_t* rd, mrl_texture_3d_t* tex);
+		void(*bind_texture_3d)(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_texture_3d_t* tex);
+		mrl_error_t(*update_texture_3d)(mrl_render_device_t* rd, mrl_texture_3d_t* tex, const mrl_texture_3d_update_desc_t* desc);
+
+		// ------- Cube map functions -------
+		mrl_error_t(*create_cube_map)(mrl_render_device_t* rd, mrl_cube_map_t** cb, const mrl_cube_map_desc_t* desc);
+		void(*destroy_cube_map)(mrl_render_device_t* rd, mrl_cube_map_t* cb);
+		void(*bind_cube_map)(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_cube_map_t* cb);
+		mrl_error_t(*update_cube_map)(mrl_render_device_t* rd, mrl_cube_map_t* cb, const mrl_cube_map_update_desc_t* desc);
+
 		// ------- Constant buffer functions -------
-		mrl_error_t(*create_constant_buffer)(mrl_render_device_t* rd, mrl_constant_buffer_t** cb, mrl_constant_buffer_desc_t* desc);
+		mrl_error_t(*create_constant_buffer)(mrl_render_device_t* rd, mrl_constant_buffer_t** cb, const mrl_constant_buffer_desc_t* desc);
 		void(*destroy_constant_buffer)(mrl_render_device_t* rd, mrl_constant_buffer_t* cb);
 		void(*bind_constant_buffer)(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_constant_buffer_t* cb);
 		void*(*map_constant_buffer)(mrl_render_device_t* rd, mrl_constant_buffer_t* cb);
@@ -702,7 +1547,7 @@ extern "C" {
 		void(*query_constant_buffer_structure)(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_constant_buffer_structure_t* cbs);
 
 		// ------- Index buffer functions -------
-		mrl_error_t(*create_index_buffer)(mrl_render_device_t* rd, mrl_index_buffer_t** ib, mrl_index_buffer_desc_t* desc);
+		mrl_error_t(*create_index_buffer)(mrl_render_device_t* rd, mrl_index_buffer_t** ib, const mrl_index_buffer_desc_t* desc);
 		void(*destroy_index_buffer)(mrl_render_device_t* rd, mrl_index_buffer_t* ib);
 		void(*set_index_buffer)(mrl_render_device_t* rd, mrl_index_buffer_t* ib);
 		void*(*map_index_buffer)(mrl_render_device_t* rd, mrl_index_buffer_t* ib);
@@ -710,21 +1555,21 @@ extern "C" {
 		void(*update_index_buffer)(mrl_render_device_t* rd, mrl_index_buffer_t* ib, mgl_u64_t offset, mgl_u64_t size, const void* data);
 
 		// ------- Vertex buffer functions -------
-		mrl_error_t(*create_vertex_buffer)(mrl_render_device_t* rd, mrl_vertex_buffer_t** vb, mrl_vertex_buffer_desc_t* desc);
+		mrl_error_t(*create_vertex_buffer)(mrl_render_device_t* rd, mrl_vertex_buffer_t** vb, const mrl_vertex_buffer_desc_t* desc);
 		void(*destroy_vertex_buffer)(mrl_render_device_t* rd, mrl_vertex_buffer_t* vb);
 		void*(*map_vertex_buffer)(mrl_render_device_t* rd, mrl_vertex_buffer_t* vb);
 		void(*unmap_vertex_buffer)(mrl_render_device_t* rd, mrl_vertex_buffer_t* vb);
 		void(*update_vertex_buffer)(mrl_render_device_t* rd, mrl_vertex_buffer_t* vb, mgl_u64_t offset, mgl_u64_t size, const void* data);
 
 		// ------- Vertex array functions -------
-		mrl_error_t(*create_vertex_array)(mrl_render_device_t* rd, mrl_vertex_array_t** va, mrl_vertex_array_desc_t* desc);
+		mrl_error_t(*create_vertex_array)(mrl_render_device_t* rd, mrl_vertex_array_t** va, const mrl_vertex_array_desc_t* desc);
 		void(*destroy_vertex_array)(mrl_render_device_t* rd, mrl_vertex_array_t* va);
 		void(*set_vertex_array)(mrl_render_device_t* rd, mrl_vertex_array_t* va);
 
 		// ------- Shader functions -------
-		mrl_error_t(*create_shader_stage)(mrl_render_device_t* rd, mrl_shader_stage_t** stage, mrl_shader_stage_desc_t* desc);
+		mrl_error_t(*create_shader_stage)(mrl_render_device_t* rd, mrl_shader_stage_t** stage, const mrl_shader_stage_desc_t* desc);
 		void(*destroy_shader_stage)(mrl_render_device_t* rd, mrl_shader_stage_t* stage);
-		mrl_error_t(*create_shader_pipeline)(mrl_render_device_t* rd, mrl_shader_pipeline_t** pipeline, mrl_shader_pipeline_desc_t* desc);
+		mrl_error_t(*create_shader_pipeline)(mrl_render_device_t* rd, mrl_shader_pipeline_t** pipeline, const mrl_shader_pipeline_desc_t* desc);
 		void(*destroy_shader_pipeline)(mrl_render_device_t* rd, mrl_shader_pipeline_t* pipeline);
 		void(*set_shader_pipeline)(mrl_render_device_t* rd, mrl_shader_pipeline_t* pipeline);
 		mrl_shader_binding_point_t*(*get_shader_binding_point)(mrl_render_device_t* rd, mrl_shader_pipeline_t* pipeline, const mgl_chr8_t* name);
@@ -741,6 +1586,172 @@ extern "C" {
 		const mgl_chr8_t*(*get_type_name)(mrl_render_device_t* rd);
 	};
 
+	// ------- Sampler functions -------
+
+	/// <summary>
+	///		Creates a sampler.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="s">Out sampler handle</param>
+	/// <param name="desc">Description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_create_sampler(mrl_render_device_t* rd, mrl_sampler_t** s, const mrl_sampler_desc_t* desc);
+
+	/// <summary>
+	///		Destroys a sampler.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="s">Sampler handle</param>
+	MRL_API void mrl_destroy_sampler(mrl_render_device_t* rd, mrl_sampler_t* s);
+
+	/// <summary>
+	///		Binds a texture 1D to a shader binding point.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="bp">Binding point</param>
+	/// <param name="s">Sampler handle</param>
+	MRL_API void mrl_bind_sampler(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_sampler_t* s);
+
+	// ------- Texture 1D functions -------
+
+	/// <summary>
+	///		Creates a new texture 1D.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="tex">Out texture 1d handle</param>
+	/// <param name="desc">Description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_create_texture_1d(mrl_render_device_t* rd, mrl_texture_1d_t** tex, const mrl_texture_1d_desc_t* desc);
+
+	/// <summary>
+	///		Destroys a texture 1D.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="tex">Texture 1D handle</param>
+	MRL_API void mrl_destroy_texture_1d(mrl_render_device_t* rd, mrl_texture_1d_t* tex);
+
+	/// <summary>
+	///		Binds a texture 1D to a shader binding point.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="bp">Binding point</param>
+	/// <param name="tex">Texture 1D handle</param>
+	MRL_API void mrl_bind_texture_1d(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_texture_1d_t* tex);
+
+	/// <summary>
+	///		Updates a texture 1D.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="tex">Texture 1D handle</param>
+	/// <param name="desc">Update description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_update_texture_1d(mrl_render_device_t* rd, mrl_texture_1d_t* tex, const mrl_texture_1d_update_desc_t* desc);
+
+	// ------- Texture 2D functions -------
+
+	/// <summary>
+	///		Creates a new texture 2D.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="tex">Out texture 2d handle</param>
+	/// <param name="desc">Description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_create_texture_2d(mrl_render_device_t* rd, mrl_texture_2d_t** tex, const mrl_texture_2d_desc_t* desc);
+
+	/// <summary>
+	///		Destroys a texture 2D.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="tex">Texture 2D handle</param>
+	MRL_API void mrl_destroy_texture_2d(mrl_render_device_t* rd, mrl_texture_2d_t* tex);
+
+	/// <summary>
+	///		Binds a texture 2D to a shader binding point.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="bp">Binding point</param>
+	/// <param name="tex">Texture 2D handle</param>
+	MRL_API void mrl_bind_texture_2d(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_texture_2d_t* tex);
+
+	/// <summary>
+	///		Updates a texture 2D.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="tex">Texture 2D handle</param>
+	/// <param name="desc">Update description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_update_texture_2d(mrl_render_device_t* rd, mrl_texture_2d_t* tex, const mrl_texture_2d_update_desc_t* desc);
+
+	// ------- Texture 3D functions -------
+
+	/// <summary>
+	///		Creates a new texture 3D.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="tex">Out texture 3d handle</param>
+	/// <param name="desc">Description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_create_texture_3d(mrl_render_device_t* rd, mrl_texture_3d_t** tex, const mrl_texture_3d_desc_t* desc);
+
+	/// <summary>
+	///		Destroys a texture 3D.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="tex">Texture 3D handle</param>
+	MRL_API void mrl_destroy_texture_3d(mrl_render_device_t* rd, mrl_texture_3d_t* tex);
+
+	/// <summary>
+	///		Binds a texture 3D to a shader binding point.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="bp">Binding point</param>
+	/// <param name="tex">Texture 3D handle</param>
+	MRL_API void mrl_bind_texture_3d(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_texture_3d_t* tex);
+
+	/// <summary>
+	///		Updates a texture 3D.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="tex">Texture 3D handle</param>
+	/// <param name="desc">Update description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_update_texture_3d(mrl_render_device_t* rd, mrl_texture_3d_t* tex, const mrl_texture_3d_update_desc_t* desc);
+
+	// ------- Cube map functions -------
+
+	/// <summary>
+	///		Creates a new cube map.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="cb">Out cube map handle</param>
+	/// <param name="desc">Description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_create_cube_map(mrl_render_device_t* rd, mrl_cube_map_t** cb, const mrl_cube_map_desc_t* desc);
+
+	/// <summary>
+	///		Destroys a cube map.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="cb">Cube map handle</param>
+	MRL_API void mrl_destroy_cube_map(mrl_render_device_t* rd, mrl_cube_map_t* cb);
+
+	/// <summary>
+	///		Binds a cube map to a shader binding point.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="bp">Binding point</param>
+	/// <param name="cb">Cube map handle</param>
+	MRL_API void mrl_bind_cube_map(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_cube_map_t* cb);
+
+	/// <summary>
+	///		Updates a cube map.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="cb">Cube map handle</param>
+	/// <param name="desc">Update description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_update_cube_map(mrl_render_device_t* rd, mrl_cube_map_t* cb, const mrl_cube_map_update_desc_t* desc);
+
 	// ------- Constant buffer functions -------
 
 	/// <summary>
@@ -750,7 +1761,7 @@ extern "C" {
 	/// <param name="cb">Out constant buffer handle</param>
 	/// <param name="desc">Constant buffer description</param>
 	/// <returns>Error code</returns>
-	MRL_API mrl_error_t mrl_create_constant_buffer(mrl_render_device_t* rd, mrl_constant_buffer_t** cb, mrl_constant_buffer_desc_t* desc);
+	MRL_API mrl_error_t mrl_create_constant_buffer(mrl_render_device_t* rd, mrl_constant_buffer_t** cb, const mrl_constant_buffer_desc_t* desc);
 
 	/// <summary>
 	///		Destroys an constant buffer.
@@ -792,7 +1803,12 @@ extern "C" {
 	/// <param name="data">Pointer to data</param>
 	MRL_API void mrl_update_constant_buffer(mrl_render_device_t* rd, mrl_constant_buffer_t* cb, mgl_u64_t offset, mgl_u64_t size, const void* data);
 
-
+	/// <summary>
+	///		Queries a constant buffer's binding point structure and data members.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="bp">Constant buffer binding point</param>
+	/// <param name="cbs">Out constant buffer structure data</param>
 	MRL_API void mrl_query_constant_buffer_structure(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_constant_buffer_structure_t* cbs);
 
 	// ------- Index buffer functions -------
@@ -804,7 +1820,7 @@ extern "C" {
 	/// <param name="ib">Out index buffer handle</param>
 	/// <param name="desc">Index buffer description</param>
 	/// <returns>Error code</returns>
-	MRL_API mrl_error_t mrl_create_index_buffer(mrl_render_device_t* rd, mrl_index_buffer_t** ib, mrl_index_buffer_desc_t* desc);
+	MRL_API mrl_error_t mrl_create_index_buffer(mrl_render_device_t* rd, mrl_index_buffer_t** ib, const mrl_index_buffer_desc_t* desc);
 
 	/// <summary>
 	///		Destroys an index buffer.
@@ -854,7 +1870,7 @@ extern "C" {
 	/// <param name="vb">Out vertex buffer handle</param>
 	/// <param name="desc">Vertex buffer description</param>
 	/// <returns>Error code</returns>
-	MRL_API mrl_error_t mrl_create_vertex_buffer(mrl_render_device_t* rd, mrl_vertex_buffer_t** vb, mrl_vertex_buffer_desc_t* desc);
+	MRL_API mrl_error_t mrl_create_vertex_buffer(mrl_render_device_t* rd, mrl_vertex_buffer_t** vb, const mrl_vertex_buffer_desc_t* desc);
 
 	/// <summary>
 	///		Destroys a vertex buffer.
@@ -897,7 +1913,7 @@ extern "C" {
 	/// <param name="va">Out vertex array handle</param>
 	/// <param name="desc">Vertex array description</param>
 	/// <returns>Error code</returns>
-	MRL_API mrl_error_t mrl_create_vertex_array(mrl_render_device_t* rd, mrl_vertex_array_t** va, mrl_vertex_array_desc_t* desc);
+	MRL_API mrl_error_t mrl_create_vertex_array(mrl_render_device_t* rd, mrl_vertex_array_t** va, const mrl_vertex_array_desc_t* desc);
 	
 	/// <summary>
 	///		Destroys a vertex array.
@@ -922,7 +1938,7 @@ extern "C" {
 	/// <param name="stage">Out shader stage handle</param>
 	/// <param name="desc">Shader stage description</param>
 	/// <returns>Error code</returns>
-	MRL_API mrl_error_t mrl_create_shader_stage(mrl_render_device_t* rd, mrl_shader_stage_t** stage, mrl_shader_stage_desc_t* desc);
+	MRL_API mrl_error_t mrl_create_shader_stage(mrl_render_device_t* rd, mrl_shader_stage_t** stage, const mrl_shader_stage_desc_t* desc);
 
 	/// <summary>
 	///		Destroys a shader stage.
@@ -938,7 +1954,7 @@ extern "C" {
 	/// <param name="pipeline">Out shader pipeline handle</param>
 	/// <param name="desc">Shader pipeline description</param>
 	/// <returns>Error code</returns>
-	MRL_API mrl_error_t mrl_create_shader_pipeline(mrl_render_device_t* rd, mrl_shader_pipeline_t** pipeline, mrl_shader_pipeline_desc_t* desc);
+	MRL_API mrl_error_t mrl_create_shader_pipeline(mrl_render_device_t* rd, mrl_shader_pipeline_t** pipeline, const mrl_shader_pipeline_desc_t* desc);
 
 	/// <summary>
 	///		Destroys a shader pipeline.

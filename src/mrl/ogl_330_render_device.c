@@ -123,7 +123,7 @@ struct mrl_ogl_330_shader_pipeline_t
 
 // ---------- Constant buffers ----------
 
-static mrl_error_t create_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t** ib, mrl_constant_buffer_desc_t* desc)
+static mrl_error_t create_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t** ib, const mrl_constant_buffer_desc_t* desc)
 {
 	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
 
@@ -286,7 +286,7 @@ static void query_constant_buffer_structure(mrl_render_device_t* brd, mrl_shader
 
 // ---------- Index buffers ----------
 
-static mrl_error_t create_index_buffer(mrl_render_device_t* brd, mrl_index_buffer_t** ib, mrl_index_buffer_desc_t* desc)
+static mrl_error_t create_index_buffer(mrl_render_device_t* brd, mrl_index_buffer_t** ib, const mrl_index_buffer_desc_t* desc)
 {
 	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
 
@@ -413,7 +413,7 @@ static void update_index_buffer(mrl_render_device_t* brd, mrl_index_buffer_t* ib
 	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, offset, size, data);
 }
 
-static mrl_error_t create_vertex_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t** vb, mrl_vertex_buffer_desc_t* desc)
+static mrl_error_t create_vertex_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t** vb, const mrl_vertex_buffer_desc_t* desc)
 {
 	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
 
@@ -515,7 +515,7 @@ static void update_vertex_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t* 
 	glBufferSubData(GL_ARRAY_BUFFER, offset, size, data);
 }
 
-static mrl_error_t create_vertex_array(mrl_render_device_t* brd, mrl_vertex_array_t** va, mrl_vertex_array_desc_t* desc)
+static mrl_error_t create_vertex_array(mrl_render_device_t* brd, mrl_vertex_array_t** va, const mrl_vertex_array_desc_t* desc)
 {
 	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
 
@@ -619,7 +619,7 @@ static void set_vertex_array(mrl_render_device_t* brd, mrl_shader_pipeline_t* va
 
 // -------- Shaders ----------
 
-static mrl_error_t create_shader_stage(mrl_render_device_t* brd, mrl_shader_stage_t** stage, mrl_shader_stage_desc_t* desc)
+static mrl_error_t create_shader_stage(mrl_render_device_t* brd, mrl_shader_stage_t** stage, const mrl_shader_stage_desc_t* desc)
 {
 	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
 	
@@ -689,7 +689,7 @@ static void destroy_shader_stage(mrl_render_device_t* brd, mrl_shader_stage_t* s
 		obj);
 }
 
-static mrl_error_t create_shader_pipeline(mrl_render_device_t* brd, mrl_shader_pipeline_t** pipeline, mrl_shader_pipeline_desc_t* desc)
+static mrl_error_t create_shader_pipeline(mrl_render_device_t* brd, mrl_shader_pipeline_t** pipeline, const mrl_shader_pipeline_desc_t* desc)
 {
 	MGL_DEBUG_ASSERT(desc->vertex != NULL && desc->pixel != NULL);
 
