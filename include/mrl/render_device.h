@@ -67,14 +67,14 @@ extern "C" {
 		///		The pointer to the warning callback function pointer is stored on the 'data' member of the hint.
 		///		The function pointer is of the type mrl_render_device_hint_warning_callback_t.
 		/// </summary>
-		MRL_HINT_WARNING_CALLBACK,
+		MRL_HINT_RENDER_DEVICE_WARNING_CALLBACK,
 
 		/// <summary>
 		///		Hints that the render device should call a function when an error occurs.
 		///		The pointer to the error callback function pointer is stored on the 'data' member of the hint.
 		/// The function pointer is of the type mrl_render_device_hint_error_callback_t.
 		/// </summary>
-		MRL_HINT_ERROR_CALLBACK,
+		MRL_HINT_RENDER_DEVICE_ERROR_CALLBACK,
 	};
 
 	struct mrl_hint_t

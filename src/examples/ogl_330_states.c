@@ -60,7 +60,7 @@ void load(void)
 		mrl_render_device_hint_error_callback_t error_callback = &render_device_error_callback;
 
 		mrl_hint_t hint = MRL_DEFAULT_HINT;
-		hint.type = MRL_HINT_ERROR_CALLBACK;
+		hint.type = MRL_HINT_RENDER_DEVICE_ERROR_CALLBACK;
 		hint.data = &error_callback;
 
 		mrl_render_device_desc_t desc = MRL_DEFAULT_RENDER_DEVICE_DESC;

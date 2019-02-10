@@ -3097,12 +3097,12 @@ static void extract_hints(mrl_ogl_330_render_device_t* rd, const mrl_render_devi
 		// Extract hint info
 		switch (hint->type)
 		{
-			case MRL_HINT_WARNING_CALLBACK:
+			case MRL_HINT_RENDER_DEVICE_WARNING_CALLBACK:
 				MGL_DEBUG_ASSERT(hint->data != NULL);
 				rd->warning_callback = *(const mrl_render_device_hint_warning_callback_t*)hint->data;
 				break;
 
-			case MRL_HINT_ERROR_CALLBACK:
+			case MRL_HINT_RENDER_DEVICE_ERROR_CALLBACK:
 				MGL_DEBUG_ASSERT(hint->data != NULL);
 				rd->error_callback = *(const mrl_render_device_hint_error_callback_t*)hint->data;
 				break;
