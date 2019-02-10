@@ -2245,6 +2245,13 @@ static void set_rd_functions(mrl_ogl_330_render_device_t* rd)
 	rd->base.bind_texture_3d = &bind_texture_3d;
 	rd->base.update_texture_3d = &update_texture_3d;
 
+	// Cube map functions
+	rd->base.create_cube_map = &create_cube_map;
+	rd->base.destroy_cube_map = &destroy_cube_map;
+	rd->base.generate_cube_map_mipmaps = &generate_cube_map_mipmaps;
+	rd->base.bind_cube_map = &bind_cube_map;
+	rd->base.update_cube_map = &update_cube_map;
+
 	// Constant buffer functions
 	rd->base.create_constant_buffer = &create_constant_buffer;
 	rd->base.destroy_constant_buffer = &destroy_constant_buffer;
