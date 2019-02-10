@@ -8,11 +8,11 @@ The following object types are supported:
 - [x] Vertex buffers.
 - [x] Index buffers.
 - [x] Constant buffers.
-- [ ] Samplers.
-- [ ] 1D Textures.
-- [ ] 2D Textures.
-- [ ] 3D Textures.
-- [ ] Cubemaps.
+- [X] Samplers.
+- [X] 1D Textures.
+- [X] 2D Textures.
+- [X] 3D Textures.
+- [X] Cubemaps.
 - [ ] Framebuffers.
 - [ ] Blend states.
 - [ ] Depth stencil states.
