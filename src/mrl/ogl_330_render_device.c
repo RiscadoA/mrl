@@ -5,6 +5,7 @@
 #include <mgl/memory/pool_allocator.h>
 #include <mgl/string/manipulation.h>
 #include <mgl/input/window.h>
+#include <mgl/math/scalar.h>
 
 #ifdef MRL_BUILD_OGL_330
 #	ifdef MGL_SYSTEM_WINDOWS
@@ -244,6 +245,166 @@ struct mrl_ogl_330_shader_pipeline_t
 	GLuint id;
 	mrl_ogl_330_shader_binding_point_t bps[MRL_OGL_330_SHADER_MAX_BINDING_POINT_COUNT];
 };
+
+// ---------- Framebuffers ----------
+
+static mrl_error_t create_framebuffer(mrl_render_device_t* brd, mrl_framebuffer_t** fb, const mrl_framebuffer_desc_t* desc)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+
+	// Check for input errors
+	if (desc->target_count == 0)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create framebuffer: target count must be at least 1");
+		return MRL_ERROR_INVALID_PARAMS;
+	}
+	else if (desc->target_count > MRL_MAX_FRAMEBUFFER_RENDER_TARGET_COUNT)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create framebuffer: maximum target count surpassed");
+		return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	for (mgl_u32_t i = 0; i < desc->target_count; ++i)
+	{
+		if ((desc->targets[i].type == MRL_RENDER_TARGET_TYPE_TEXTURE_2D && desc->targets[i].tex_2d.handle == NULL) ||
+			(desc->targets[i].type == MRL_RENDER_TARGET_TYPE_CUBE_MAP && desc->targets[i].cube_map.handle == NULL))
+		{
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create framebuffer: defined target cannot be NULL");
+			return MRL_ERROR_INVALID_PARAMS;
+		}
+
+		if (desc->targets[i].type == MRL_RENDER_TARGET_TYPE_CUBE_MAP &&
+			(desc->targets[i].cube_map.face < MRL_CUBE_MAP_FACE_POSITIVE_X || desc->targets[i].cube_map.face > MRL_CUBE_MAP_FACE_NEGATIVE_Z))
+		{
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create framebuffer: invalid cube map target face");
+			return MRL_ERROR_INVALID_PARAMS;
+		}
+
+		if (desc->targets[i].type != MRL_RENDER_TARGET_TYPE_TEXTURE_2D &&
+			desc->targets[i].type != MRL_RENDER_TARGET_TYPE_CUBE_MAP)
+		{
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create framebuffer: invalid target type");
+			return MRL_ERROR_INVALID_PARAMS;
+		}
+	}
+
+	// Initialize framebuffer
+	GLuint id;
+	glGenFramebuffers(1, &id);
+	glBindFramebuffer(GL_FRAMEBUFFER, id);
+
+	for (mgl_u32_t i = 0; i < desc->target_count; ++i)
+	{
+		if (desc->targets[i].type == MRL_RENDER_TARGET_TYPE_TEXTURE_2D)
+		{
+			mrl_ogl_330_texture_2d_t* tex = (mrl_ogl_330_texture_2d_t*)desc->targets[i].tex_2d.handle;
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, tex->id, 0);
+		}
+		else if (desc->targets[i].type == MRL_RENDER_TARGET_TYPE_CUBE_MAP)
+		{
+			mrl_ogl_330_cube_map_t* cb = (mrl_ogl_330_cube_map_t*)desc->targets[i].cube_map.handle;
+			GLenum face;
+
+			switch (desc->targets[i].cube_map.face)
+			{
+				case MRL_CUBE_MAP_FACE_POSITIVE_X: face = GL_TEXTURE_CUBE_MAP_POSITIVE_X; break;
+				case MRL_CUBE_MAP_FACE_NEGATIVE_X: face = GL_TEXTURE_CUBE_MAP_NEGATIVE_X; break;
+				case MRL_CUBE_MAP_FACE_POSITIVE_Y: face = GL_TEXTURE_CUBE_MAP_POSITIVE_Y; break;
+				case MRL_CUBE_MAP_FACE_NEGATIVE_Y: face = GL_TEXTURE_CUBE_MAP_NEGATIVE_Y; break;
+				case MRL_CUBE_MAP_FACE_POSITIVE_Z: face = GL_TEXTURE_CUBE_MAP_POSITIVE_Z; break;
+				case MRL_CUBE_MAP_FACE_NEGATIVE_Z: face = GL_TEXTURE_CUBE_MAP_NEGATIVE_Z; break;
+			}
+
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, face, cb->id, 0);
+		}
+	}
+
+	if (desc->depth_stencil != NULL)
+	{
+		mrl_ogl_330_texture_2d_t* tex = (mrl_ogl_330_texture_2d_t*)desc->depth_stencil;
+		
+		if (tex->format == GL_DEPTH_COMPONENT)
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, tex->id, 0);
+		else if (tex->format == GL_DEPTH_STENCIL)
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, tex->id, 0);
+		else
+		{
+			glDeleteFramebuffers(1, &id);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create framebuffer: invalid depth/stencil texture format");
+			return MRL_ERROR_INVALID_PARAMS;
+		}
+	}
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		glDeleteFramebuffers(1, &id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
+
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	{
+		glDeleteFramebuffers(1, &id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, u8"Failed to create framebuffer: glCheckFramebufferStatus didn't return GL_FRAMEBUFFER_COMPLETE");
+		return MRL_ERROR_EXTERNAL;
+	}
+
+	// Allocate object
+	mrl_ogl_330_framebuffer_t* obj;
+	mgl_error_t err = mgl_allocate(
+		&rd->memory.framebuffer.pool,
+		sizeof(*obj),
+		(void**)&obj);
+	if (err != MGL_ERROR_NONE)
+	{
+		glDeleteFramebuffers(1, &id);
+		return mrl_make_mgl_error(err);
+	}
+
+	// Store framebuffer info
+	obj->id = id;
+	*fb = (mrl_framebuffer_t*)obj;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	return MRL_ERROR_NONE;
+}
+
+static void destroy_framebuffer(mrl_render_device_t* brd, mrl_framebuffer_t* fb)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_framebuffer_t* obj = (mrl_ogl_330_framebuffer_t*)fb;
+
+	// Delete framebuffer
+	glDeleteFramebuffers(1, &obj->id);
+
+	// Deallocate object
+	mgl_deallocate(
+		&rd->memory.framebuffer.pool,
+		obj);
+}
+
+static void set_framebuffer(mrl_render_device_t* brd, mrl_framebuffer_t* fb)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_framebuffer_t* obj = (mrl_ogl_330_framebuffer_t*)fb;
+
+	// Set framebuffer
+	if (obj == NULL)
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	else
+		glBindFramebuffer(GL_FRAMEBUFFER, obj->id);
+}
 
 // ---------- Samplers ----------
 
@@ -625,8 +786,8 @@ static mrl_error_t create_texture_2d(mrl_render_device_t* brd, mrl_texture_2d_t*
 
 		case MRL_TEXTURE_FORMAT_D16: internal_format = GL_DEPTH; format = GL_DEPTH_COMPONENT; type = GL_FLOAT; break;
 		case MRL_TEXTURE_FORMAT_D32: internal_format = GL_DEPTH; format = GL_DEPTH_COMPONENT; type = GL_FLOAT; break;
-		case MRL_TEXTURE_FORMAT_D24S8: internal_format = GL_R32UI; format = GL_DEPTH_STENCIL; type = GL_FLOAT; break;
-		case MRL_TEXTURE_FORMAT_D32S8: internal_format = GL_R32UI; format = GL_DEPTH_STENCIL; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_D24S8: internal_format = GL_DEPTH24_STENCIL8; format = GL_DEPTH_STENCIL; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_D32S8: internal_format = GL_DEPTH32F_STENCIL8; format = GL_DEPTH_STENCIL; type = GL_FLOAT; break;
 
 		default:
 			if (rd->error_callback != NULL)
@@ -1945,9 +2106,63 @@ static void draw_triangles_indexed(mrl_render_device_t* brd, mgl_u64_t offset, m
 	glDrawElements(GL_TRIANGLES, (GLsizei)count, rd->state.index_buffer_format, (const void*)offset);
 }
 
-static const mgl_chr8_t* get_type_name(mrl_render_device_t* rd)
+static void draw_triangles_instanced(mrl_render_device_t* brd, mgl_u64_t offset, mgl_u64_t count, mgl_u64_t instance_count)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	glDrawArraysInstanced(GL_TRIANGLES, (GLint)offset, (GLsizei)count, (GLsizei)instance_count);
+}
+
+static void draw_triangles_indexed_instanced(mrl_render_device_t* brd, mgl_u64_t offset, mgl_u64_t count, mgl_u64_t instance_count)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	glDrawElementsInstanced(GL_TRIANGLES, (GLsizei)count, rd->state.index_buffer_format, (const void*)offset, (GLsizei)instance_count);
+}
+
+static void set_viewport(mrl_render_device_t* brd, mgl_i32_t x, mgl_i32_t y, mgl_i32_t w, mgl_i32_t h)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	glViewport((GLint)x, (GLint)y, (GLint)w, (GLint)h);
+}
+
+static const mgl_chr8_t* get_type_name(mrl_render_device_t* brd)
 {
 	return u8"ogl_330";
+}
+
+static mgl_i64_t get_property_i(mrl_render_device_t* brd, mgl_enum_t name)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+
+	if (name == MRL_PROPERTY_MAX_ANISTROPY)
+	{
+		if (GL_ARB_texture_filter_anisotropic)
+		{
+			GLfloat v = 1.0f;
+			glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &v);
+			return (mgl_i64_t)v;
+		}
+		else return 1;
+	}
+
+	return -1;
+}
+
+static mgl_f64_t get_property_f(mrl_render_device_t* brd, mgl_enum_t name)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+
+	if (name == MRL_PROPERTY_MAX_ANISTROPY)
+	{
+		if (GL_ARB_texture_filter_anisotropic)
+		{
+			GLfloat v = 1.0f;
+			glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &v);
+			return (mgl_f64_t)v;
+		}
+		else return 1.0;
+	}
+
+	return MGL_F64_NAN;
 }
 
 static mrl_error_t create_rd_allocators(mrl_ogl_330_render_device_t* rd, const mrl_render_device_desc_t* desc)
@@ -2219,6 +2434,11 @@ static void destroy_rd_allocators(mrl_ogl_330_render_device_t* rd)
 
 static void set_rd_functions(mrl_ogl_330_render_device_t* rd)
 {
+	// Framebuffer functions
+	rd->base.create_framebuffer = &create_framebuffer;
+	rd->base.destroy_framebuffer = &destroy_framebuffer;
+	rd->base.set_framebuffer = &set_framebuffer;
+
 	// Sampler functions
 	rd->base.create_sampler = &create_sampler;
 	rd->base.destroy_sampler = &destroy_sampler;
@@ -2295,6 +2515,14 @@ static void set_rd_functions(mrl_ogl_330_render_device_t* rd)
 	rd->base.clear_stencil = &clear_stencil;
 	rd->base.draw_triangles = &draw_triangles;
 	rd->base.draw_triangles_indexed = &draw_triangles_indexed;
+	rd->base.draw_triangles_instanced = &draw_triangles_instanced;
+	rd->base.draw_triangles_indexed_instanced = &draw_triangles_indexed_instanced;
+	rd->base.set_viewport = &set_viewport;
+
+	// Getter functions
+	rd->base.get_type_name = &get_type_name;
+	rd->base.get_property_i = &get_property_i;
+	rd->base.get_property_f = &get_property_f;
 
 	// Swap buffers
 	if (mgl_str_equal(u8"win32", mgl_get_window_type(rd->window)))
@@ -2306,8 +2534,6 @@ static void set_rd_functions(mrl_ogl_330_render_device_t* rd)
 #	endif
 	}
 	else mgl_abort();
-
-	rd->base.get_type_name = &get_type_name;
 }
 
 static void extract_hints(mrl_ogl_330_render_device_t* rd, const mrl_render_device_desc_t* desc)
