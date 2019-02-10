@@ -1,6 +1,78 @@
 #include <mrl/render_device.h>
 #include <mgl/error.h>
 
+MRL_API mrl_error_t mrl_create_framebuffer(mrl_render_device_t * rd, mrl_framebuffer_t ** fb, const mrl_framebuffer_desc_t * desc)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && fb != NULL && desc != NULL);
+	return rd->create_framebuffer(rd, fb, desc);
+}
+
+MRL_API void mrl_destroy_framebuffer(mrl_render_device_t * rd, mrl_framebuffer_t * fb)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && fb != NULL);
+	rd->destroy_framebuffer(rd, fb);
+}
+
+MRL_API void mrl_set_framebuffer(mrl_render_device_t * rd, mrl_framebuffer_t * fb)
+{
+	MGL_DEBUG_ASSERT(rd != NULL);
+	rd->set_framebuffer(rd, fb);
+}
+
+MRL_API mrl_error_t mrl_create_raster_state(mrl_render_device_t * rd, mrl_raster_state_t ** s, const mrl_raster_state_desc_t * desc)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && s != NULL && desc != NULL);
+	return rd->create_raster_state(rd, s, desc);
+}
+
+MRL_API void mrl_destroy_raster_state(mrl_render_device_t * rd, mrl_raster_state_t * s)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && s != NULL);
+	rd->destroy_raster_state(rd, s);
+}
+
+MRL_API void mrl_set_raster_state(mrl_render_device_t * rd, mrl_raster_state_t * s)
+{
+	MGL_DEBUG_ASSERT(rd != NULL);
+	rd->set_raster_state(rd, s);
+}
+
+MRL_API mrl_error_t mrl_create_depth_stencil_state(mrl_render_device_t * rd, mrl_depth_stencil_state_t ** s, const mrl_depth_stencil_state_desc_t * desc)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && s != NULL && desc != NULL);
+	return rd->create_depth_stencil_state(rd, s, desc);
+}
+
+MRL_API void mrl_destroy_depth_stencil_state(mrl_render_device_t * rd, mrl_depth_stencil_state_t * s)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && s != NULL);
+	rd->destroy_depth_stencil_state(rd, s);
+}
+
+MRL_API void mrl_set_depth_stencil_state(mrl_render_device_t * rd, mrl_depth_stencil_state_t * s)
+{
+	MGL_DEBUG_ASSERT(rd != NULL);
+	rd->set_depth_stencil_state(rd, s);
+}
+
+MRL_API mrl_error_t mrl_create_blend_state(mrl_render_device_t * rd, mrl_blend_state_t ** s, const mrl_blend_state_desc_t * desc)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && s != NULL && desc != NULL);
+	return rd->create_blend_state(rd, s, desc);
+}
+
+MRL_API void mrl_destroy_blend_state(mrl_render_device_t * rd, mrl_blend_state_t * s)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && s != NULL);
+	rd->destroy_blend_state(rd, s);
+}
+
+MRL_API void mrl_set_blend_state(mrl_render_device_t * rd, mrl_blend_state_t * s)
+{
+	MGL_DEBUG_ASSERT(rd != NULL);
+	rd->set_blend_state(rd, s);
+}
+
 MRL_API mrl_error_t mrl_create_sampler(mrl_render_device_t * rd, mrl_sampler_t ** s, const mrl_sampler_desc_t * desc)
 {
 	MGL_DEBUG_ASSERT(rd != NULL && s != NULL && desc != NULL);
@@ -31,6 +103,12 @@ MRL_API void mrl_destroy_texture_1d(mrl_render_device_t * rd, mrl_texture_1d_t *
 	rd->destroy_texture_1d(rd, tex);
 }
 
+MRL_API void mrl_generate_texture_1d_mipmaps(mrl_render_device_t * rd, mrl_texture_1d_t * tex)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && tex != NULL);
+	rd->generate_texture_1d_mipmaps(rd, tex);
+}
+
 MRL_API void mrl_bind_texture_1d(mrl_render_device_t * rd, mrl_shader_binding_point_t * bp, mrl_texture_1d_t * tex)
 {
 	MGL_DEBUG_ASSERT(rd != NULL && bp != NULL);
@@ -53,6 +131,12 @@ MRL_API void mrl_destroy_texture_2d(mrl_render_device_t * rd, mrl_texture_2d_t *
 {
 	MGL_DEBUG_ASSERT(rd != NULL && tex != NULL);
 	rd->destroy_texture_2d(rd, tex);
+}
+
+MRL_API void mrl_generate_texture_2d_mipmaps(mrl_render_device_t * rd, mrl_texture_2d_t * tex)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && tex != NULL);
+	rd->generate_texture_2d_mipmaps(rd, tex);
 }
 
 MRL_API void mrl_bind_texture_2d(mrl_render_device_t * rd, mrl_shader_binding_point_t * bp, mrl_texture_2d_t * tex)
@@ -79,6 +163,12 @@ MRL_API void mrl_destroy_texture_3d(mrl_render_device_t * rd, mrl_texture_3d_t *
 	rd->destroy_texture_3d(rd, tex);
 }
 
+MRL_API void mrl_generate_texture_3d_mipmaps(mrl_render_device_t * rd, mrl_texture_3d_t * tex)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && tex != NULL);
+	rd->generate_texture_3d_mipmaps(rd, tex);
+}
+
 MRL_API void mrl_bind_texture_3d(mrl_render_device_t * rd, mrl_shader_binding_point_t * bp, mrl_texture_3d_t * tex)
 {
 	MGL_DEBUG_ASSERT(rd != NULL && bp != NULL);
@@ -101,6 +191,12 @@ MRL_API void mrl_destroy_cube_map(mrl_render_device_t * rd, mrl_cube_map_t * cb)
 {
 	MGL_DEBUG_ASSERT(rd != NULL && cb != NULL);
 	rd->destroy_cube_map(rd, cb);
+}
+
+MRL_API void mrl_generate_cube_map_mipmaps(mrl_render_device_t * rd, mrl_cube_map_t * cb)
+{
+	MGL_DEBUG_ASSERT(rd != NULL && cb != NULL);
+	rd->generate_cube_map_mipmaps(rd, cb);
 }
 
 MRL_API void mrl_bind_cube_map(mrl_render_device_t * rd, mrl_shader_binding_point_t * bp, mrl_cube_map_t * cb)

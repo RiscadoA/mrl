@@ -11,10 +11,10 @@ extern "C" {
 
 	typedef struct mrl_hint_t mrl_hint_t;
 	typedef struct mrl_framebuffer_desc_t mrl_framebuffer_desc_t;
-	typedef struct mrl_blend_state_desc_t mrl_blend_state_desc_t;
-	typedef struct mrl_depth_stencil_state_desc_t mrl_depth_stencil_state_desc_t;
-	typedef struct mrl_sampler_desc_t mrl_sampler_desc_t;
 	typedef struct mrl_raster_state_desc_t mrl_raster_state_desc_t;
+	typedef struct mrl_depth_stencil_state_desc_t mrl_depth_stencil_state_desc_t;
+	typedef struct mrl_blend_state_desc_t mrl_blend_state_desc_t;
+	typedef struct mrl_sampler_desc_t mrl_sampler_desc_t;
 	typedef struct mrl_texture_1d_desc_t mrl_texture_1d_desc_t;
 	typedef struct mrl_texture_1d_update_desc_t mrl_texture_1d_update_desc_t;
 	typedef struct mrl_texture_2d_desc_t mrl_texture_2d_desc_t;
@@ -35,9 +35,9 @@ extern "C" {
 	typedef struct mrl_render_device_desc_t mrl_render_device_desc_t;
 
 	typedef void mrl_framebuffer_t;
-	typedef void mrl_blend_state_t;
-	typedef void mrl_depth_stencil_state_t;
 	typedef void mrl_raster_state_t;
+	typedef void mrl_depth_stencil_state_t;
+	typedef void mrl_blend_state_t;
 	typedef void mrl_sampler_t;
 	typedef void mrl_texture_1d_t;
 	typedef void mrl_texture_2d_t;
@@ -99,6 +99,567 @@ extern "C" {
 	0,\
 	NULL,\
 	NULL,\
+	NULL,\
+})
+
+	// ---- Framebuffer ----
+
+#define MRL_MAX_FRAMEBUFFER_RENDER_TARGET_COUNT 8
+
+	enum
+	{
+		MRL_RENDER_TARGET_TYPE_TEXTURE_2D,
+		MRL_RENDER_TARGET_TYPE_CUBE_MAP,
+	};
+
+	struct mrl_framebuffer_desc_t
+	{
+		/// <summary>
+		///		Framebuffer render targets.
+		///		These textures/cube maps must have the usage set to MRL_TEXTURE_USAGE_RENDER_TARGET.
+		/// </summary>
+		struct
+		{
+			/// <summary>
+			///		The type of the render target.
+			///		Valid values:
+			///		- MRL_RENDER_TARGET_TYPE_TEXTURE_2D;
+			///		- MRL_RENDER_TARGET_TYPE_CUBE_MAP;
+			/// </summary>
+			mgl_enum_t type;
+
+			/// <summary>
+			///		Mip level of the texture which will be set as a render target.
+			/// </summary>
+			mgl_u32_t mip_level;
+
+			union
+			{
+				struct
+				{
+					/// <summary>
+					///		Texture 2D handle.
+					/// </summary>
+					mrl_texture_2d_t* handle;
+				} tex_2d;
+
+				struct
+				{
+					/// <summary>
+					///		Cube map handle.
+					/// </summary>
+					mrl_cube_map_t* handle;
+
+					/// <summary>
+					///		Cube map face.
+					/// </summary>
+					mgl_enum_t face;
+				} cube_map;
+			};
+
+		} targets[MRL_MAX_FRAMEBUFFER_RENDER_TARGET_COUNT];
+
+		/// <summary>
+		///		Number of render targets.
+		///		Valid values: 1 - MRL_MAX_FRAMEBUFFER_RENDER_TARGET_COUNT;		
+		/// </summary>
+		mgl_u32_t target_count;
+
+		/// <summary>
+		///		Depth stencil texture.
+		///		Optional (can be NULL).
+		/// </summary>
+		mrl_texture_2d_t* depth_stencil;
+
+		/// <summary>
+		///		Hint list.
+		///		Hints may be ignored by some render devices.
+		///		Optional (can be NULL).
+		/// </summary>
+		const mrl_hint_t* hints;
+	};
+
+#define MRL_DEFAULT_FRAMEBUFFER_DESC ((mrl_framebuffer_desc_t) {\
+	{\
+		-1,\
+		1,\
+	},\
+	0,\
+	NULL,\
+	NULL,\
+})
+
+	// ---- Raster state ----
+
+	enum
+	{
+		MRL_WINDING_CW,
+		MRL_WINDING_CCW,
+	};
+
+	enum
+	{
+		MRL_FACE_FRONT,
+		MRL_FACE_BACK,
+		MRL_FACE_FRONT_AND_BACK,
+	};
+
+	enum
+	{
+		MRL_RASTER_MODE_FILL,
+		MRL_RASTER_MODE_WIREFRAME,
+	};
+
+	struct mrl_raster_state_desc_t
+	{
+		/// <summary>
+		///		Is culling enabled?
+		///		Valid values:
+		///			MGL_FALSE;
+		///			MGL_TRUE;
+		/// </summary>
+		mgl_bool_t cull_enabled;
+
+		/// <summary>
+		///		Specifies the front face winding order.
+		///		Valid values:
+		///			MRL_WINDING_CW;
+		///			MRK_WINDING_CCW;
+		/// </summary>
+		mgl_enum_t front_face;
+
+		/// <summary>
+		///		Specifies the face that should be culled.
+		///		Valid values:
+		///			MRL_FACE_FRONT;
+		///			MRL_FACE_BACK;
+		///			MRL_FACE_FRONT_AND_BACK;
+		/// </summary>
+		mgl_enum_t cull_face;
+
+		/// <summary>
+		///		Specifies the rasterizer mode.
+		///		Valid values:
+		///			MRL_RASTER_MODE_FILL;
+		///			MRL_RASTER_MODE_WIREFRAME;
+		/// </summary>
+		mgl_enum_t raster_mode;
+
+		/// <summary>
+		///		Hint list.
+		///		Hints may be ignored by some render devices.
+		///		Optional (can be NULL).
+		/// </summary>
+		const mrl_hint_t* hints;
+	};
+
+#define MRL_DEFAULT_RASTER_STATE_DESC ((mrl_raster_state_desc_t) {\
+	MGL_TRUE,\
+	MRL_WINDING_CW,\
+	MRL_FACE_BACK,\
+	MRL_RASTER_MODE_FILL,\
+	NULL,\
+})
+
+	// ---- Depth stencil state ----
+
+	enum
+	{
+		MRL_COMPARE_NEVER,
+		MRL_COMPARE_LESS,
+		MRL_COMPARE_LEQUAL,
+		MRL_COMPARE_GREATER,
+		MRL_COMPARE_GEQUAL,
+		MRL_COMPARE_EQUAL,
+		MRL_COMPARE_NEQUAL,
+		MRL_COMPARE_ALWAYS,
+	};
+
+	enum
+	{
+		MRL_ACTION_KEEP,
+		MRL_ACTION_ZERO,
+		MRL_ACTION_REPLACE,
+		MRL_ACTION_INCREMENT,
+		MRL_ACTION_DECREMENT,
+		MRL_ACTION_INCREMENT_WRAP,
+		MRL_ACTION_DECREMENT_WRAP,
+		MRL_ACTION_INVERT,
+	};
+
+	struct mrl_depth_stencil_state_desc_t
+	{
+		struct
+		{
+			/// <summary>
+			///		Perform depth checks?
+			///		Valid values:
+			///		- MGL_FALSE;
+			///		- MGL_TRUE;
+			/// </summary>
+			mgl_bool_t enabled;
+
+			/// <summary>
+			///		Writes to depth?
+			///		Valid values:
+			///		- MGL_FALSE;
+			///		- MGL_TRUE;
+			/// </summary>
+			mgl_bool_t write_enabled;
+
+			/// <summary>
+			///		Depth 'near' value.
+			/// </summary>
+			mgl_f32_t near;
+
+			/// <summary>
+			///		Depth 'far' value.
+			/// </summary>
+			mgl_f32_t far;
+
+			/// <summary>
+			///		Depth comparison function.
+			///		Valid values:
+			///		- MRL_COMPARE_NEVER;
+			///		- MRL_COMPARE_LESS;
+			///		- MRL_COMPARE_LEQUAL;
+			///		- MRL_COMPARE_GREATER;
+			///		- MRL_COMPARE_GEQUAL;
+			///		- MRL_COMPARE_EQUAL;
+			///		- MRL_COMPARE_NEQUAL;
+			///		- MRL_COMPARE_ALWAYS;
+			/// </summary>
+			mgl_enum_t compare;
+		} depth;
+
+		struct
+		{
+			/// <summary>
+			///		Stencil ref value used on stencil comparison functions.
+			/// </summary>
+			mgl_u32_t ref;
+
+			/// <summary>
+			///		Is stencil enabled?
+			///		Valid values:
+			///		- MGL_FALSE;
+			///		- MGL_TRUE;
+			/// </summary>
+			mgl_bool_t enabled;
+
+			/// <summary>
+			///		Stencil read mask.
+			/// </summary>
+			mgl_u32_t read_mask;
+
+			/// <summary>
+			///		Stencil write mask.
+			/// </summary>
+			mgl_u32_t write_mask;
+
+			struct
+			{
+				/// <summary>
+				///		Stencil comparison function.
+				///		Valid values:
+				///		- MRL_COMPARE_NEVER;
+				///		- MRL_COMPARE_LESS;
+				///		- MRL_COMPARE_LEQUAL;
+				///		- MRL_COMPARE_GREATER;
+				///		- MRL_COMPARE_GEQUAL;
+				///		- MRL_COMPARE_EQUAL;
+				///		- MRL_COMPARE_NEQUAL;
+				///		- MRL_COMPARE_ALWAYS;
+				/// </summary>
+				mgl_enum_t compare;
+
+				/// <summary>
+				///		Stencil comparison fail action.
+				///		Valid values:
+				///		- MRL_ACTION_KEEP;
+				///		- MRL_ACTION_ZERO;
+				///		- MRL_ACTION_REPLACE;
+				///		- MRL_ACTION_INCREMENT;
+				///		- MRL_ACTION_DECREMENT;
+				///		- MRL_ACTION_INCREMENT_WRAP;
+				///		- MRL_ACTION_DECREMENT_WRAP;
+				///		- MRL_ACTION_INVERT;
+				/// </summary>
+				mgl_enum_t fail;
+
+				/// <summary>
+				///		Stencil comparison pass action.
+				///		Valid values:
+				///		- MRL_ACTION_KEEP;
+				///		- MRL_ACTION_ZERO;
+				///		- MRL_ACTION_REPLACE;
+				///		- MRL_ACTION_INCREMENT;
+				///		- MRL_ACTION_DECREMENT;
+				///		- MRL_ACTION_INCREMENT_WRAP;
+				///		- MRL_ACTION_DECREMENT_WRAP;
+				///		- MRL_ACTION_INVERT;
+				/// </summary>
+				mgl_enum_t pass;
+
+				/// <summary>
+				///		Stencil depth comparison fail action.
+				///		Valid values:
+				///		- MRL_ACTION_KEEP;
+				///		- MRL_ACTION_ZERO;
+				///		- MRL_ACTION_REPLACE;
+				///		- MRL_ACTION_INCREMENT;
+				///		- MRL_ACTION_DECREMENT;
+				///		- MRL_ACTION_INCREMENT_WRAP;
+				///		- MRL_ACTION_DECREMENT_WRAP;
+				///		- MRL_ACTION_INVERT;
+				/// </summary>
+				mgl_enum_t depth_fail;
+			} front_face;
+
+			struct
+			{
+				/// <summary>
+				///		Stencil comparison function.
+				///		Valid values:
+				///		- MRL_COMPARE_NEVER;
+				///		- MRL_COMPARE_LESS;
+				///		- MRL_COMPARE_LEQUAL;
+				///		- MRL_COMPARE_GREATER;
+				///		- MRL_COMPARE_GEQUAL;
+				///		- MRL_COMPARE_EQUAL;
+				///		- MRL_COMPARE_NEQUAL;
+				///		- MRL_COMPARE_ALWAYS;
+				/// </summary>
+				mgl_enum_t compare;
+
+				/// <summary>
+				///		Stencil comparison fail action.
+				///		Valid values:
+				///		- MRL_ACTION_KEEP;
+				///		- MRL_ACTION_ZERO;
+				///		- MRL_ACTION_REPLACE;
+				///		- MRL_ACTION_INCREMENT;
+				///		- MRL_ACTION_DECREMENT;
+				///		- MRL_ACTION_INCREMENT_WRAP;
+				///		- MRL_ACTION_DECREMENT_WRAP;
+				///		- MRL_ACTION_INVERT;
+				/// </summary>
+				mgl_enum_t fail;
+
+				/// <summary>
+				///		Stencil comparison pass action.
+				///		Valid values:
+				///		- MRL_ACTION_KEEP;
+				///		- MRL_ACTION_ZERO;
+				///		- MRL_ACTION_REPLACE;
+				///		- MRL_ACTION_INCREMENT;
+				///		- MRL_ACTION_DECREMENT;
+				///		- MRL_ACTION_INCREMENT_WRAP;
+				///		- MRL_ACTION_DECREMENT_WRAP;
+				///		- MRL_ACTION_INVERT;
+				/// </summary>
+				mgl_enum_t pass;
+
+				/// <summary>
+				///		Stencil depth comparison fail action.
+				///		Valid values:
+				///		- MRL_ACTION_KEEP;
+				///		- MRL_ACTION_ZERO;
+				///		- MRL_ACTION_REPLACE;
+				///		- MRL_ACTION_INCREMENT;
+				///		- MRL_ACTION_DECREMENT;
+				///		- MRL_ACTION_INCREMENT_WRAP;
+				///		- MRL_ACTION_DECREMENT_WRAP;
+				///		- MRL_ACTION_INVERT;
+				/// </summary>
+				mgl_enum_t depth_fail;
+			} back_face;
+		} stencil;
+
+		/// <summary>
+		///		Hint list.
+		///		Hints may be ignored by some render devices.
+		///		Optional (can be NULL).
+		/// </summary>
+		const mrl_hint_t* hints;
+	};
+
+#define MRL_DEFAULT_DEPTH_STENCIL_STATE_DESC ((mrl_depth_stencil_state_desc_t) {\
+	{\
+		MGL_TRUE,\
+		MGL_TRUE,\
+		0.1f,\
+		1000.0f,\
+		MRL_COMPARE_LESS,\
+	},\
+	{\
+		0,\
+		MGL_FALSE,\
+		0xFFFFFFFFFFFFFFFF,\
+		0xFFFFFFFFFFFFFFFF,\
+		{\
+			MRL_COMPARE_ALWAYS,\
+			MRL_ACTION_KEEP,\
+			MRL_ACTION_KEEP,\
+			MRL_ACTION_KEEP,\
+		},\
+		{\
+			MRL_COMPARE_ALWAYS,\
+			MRL_ACTION_KEEP,\
+			MRL_ACTION_KEEP,\
+			MRL_ACTION_KEEP,\
+		},\
+	},\
+	NULL,\
+})
+
+	// ---- Blend state ----
+
+	enum
+	{
+		MRL_BLEND_FACTOR_ZERO,
+		MRL_BLEND_FACTOR_ONE,
+		MRL_BLEND_FACTOR_SRC_COLOR,
+		MRL_BLEND_FACTOR_INV_SRC_COLOR,
+		MRL_BLEND_FACTOR_DST_COLOR,
+		MRL_BLEND_FACTOR_INV_DST_COLOR,
+		MRL_BLEND_FACTOR_SRC_ALPHA,
+		MRL_BLEND_FACTOR_INV_SRC_ALPHA,
+		MRL_BLEND_FACTOR_DST_ALPHA,
+		MRL_BLEND_FACTOR_INV_DST_ALPHA,
+	};
+
+	enum
+	{
+		MRL_BLEND_OP_ADD,
+		MRL_BLEND_OP_SUBTRACT,
+		MRL_BLEND_OP_REV_SUBTRACT,
+		MRL_BLEND_OP_MIN,
+		MRL_BLEND_OP_MAX,
+	};
+
+	struct mrl_blend_state_desc_t
+	{
+		/// <summary>
+		///		Is blend enabled?
+		///		Valid values:
+		///		- MGL_FALSE;
+		///		- MGL_TRUE;
+		/// </summary>
+		mgl_bool_t blend_enabled;
+
+		struct
+		{
+			/// <summary>
+			///		Color blend source factor.
+			///		Valid values:
+			///		- MRL_BLEND_FACTOR_ZERO;
+			///		- MRL_BLEND_FACTOR_ONE;
+			///		- MRL_BLEND_FACTOR_SRC_COLOR;
+			///		- MRL_BLEND_FACTOR_INV_SRC_COLOR;
+			///		- MRL_BLEND_FACTOR_DST_COLOR;
+			///		- MRL_BLEND_FACTOR_INV_DST_COLOR;
+			///		- MRL_BLEND_FACTOR_SRC_ALPHA;
+			///		- MRL_BLEND_FACTOR_INV_SRC_ALPHA;
+			///		- MRL_BLEND_FACTOR_DST_ALPHA;
+			///		- MRL_BLEND_FACTOR_INV_DST_ALPHA;
+			/// </summary>
+			mgl_enum_t src;
+
+			/// <summary>
+			///		Color blend destination factor.
+			///		Valid values:
+			///		- MRL_BLEND_FACTOR_ZERO;
+			///		- MRL_BLEND_FACTOR_ONE;
+			///		- MRL_BLEND_FACTOR_SRC_COLOR;
+			///		- MRL_BLEND_FACTOR_INV_SRC_COLOR;
+			///		- MRL_BLEND_FACTOR_DST_COLOR;
+			///		- MRL_BLEND_FACTOR_INV_DST_COLOR;
+			///		- MRL_BLEND_FACTOR_SRC_ALPHA;
+			///		- MRL_BLEND_FACTOR_INV_SRC_ALPHA;
+			///		- MRL_BLEND_FACTOR_DST_ALPHA;
+			///		- MRL_BLEND_FACTOR_INV_DST_ALPHA;
+			/// </summary>
+			mgl_enum_t dst;
+
+			/// <summary>
+			///		Color blend operation.
+			///		Valid values:
+			///		- MRL_BLEND_OP_ADD;
+			///		- MRL_BLEND_OP_SUBTRACT;
+			///		- MRL_BLEND_OP_REV_SUBTRACT;
+			///		- MRL_BLEND_OP_MIN;
+			///		- MRL_BLEND_OP_MAX;
+			/// </summary>
+			mgl_enum_t op;
+		} color;
+
+		struct
+		{
+			/// <summary>
+			///		Alpha blend source factor.
+			///		Valid values:
+			///		- MRL_BLEND_FACTOR_ZERO;
+			///		- MRL_BLEND_FACTOR_ONE;
+			///		- MRL_BLEND_FACTOR_SRC_COLOR;
+			///		- MRL_BLEND_FACTOR_INV_SRC_COLOR;
+			///		- MRL_BLEND_FACTOR_DST_COLOR;
+			///		- MRL_BLEND_FACTOR_INV_DST_COLOR;
+			///		- MRL_BLEND_FACTOR_SRC_ALPHA;
+			///		- MRL_BLEND_FACTOR_INV_SRC_ALPHA;
+			///		- MRL_BLEND_FACTOR_DST_ALPHA;
+			///		- MRL_BLEND_FACTOR_INV_DST_ALPHA;
+			/// </summary>
+			mgl_enum_t src;
+
+			/// <summary>
+			///		Alpha blend destination factor.
+			///		Valid values:
+			///		- MRL_BLEND_FACTOR_ZERO;
+			///		- MRL_BLEND_FACTOR_ONE;
+			///		- MRL_BLEND_FACTOR_SRC_COLOR;
+			///		- MRL_BLEND_FACTOR_INV_SRC_COLOR;
+			///		- MRL_BLEND_FACTOR_DST_COLOR;
+			///		- MRL_BLEND_FACTOR_INV_DST_COLOR;
+			///		- MRL_BLEND_FACTOR_SRC_ALPHA;
+			///		- MRL_BLEND_FACTOR_INV_SRC_ALPHA;
+			///		- MRL_BLEND_FACTOR_DST_ALPHA;
+			///		- MRL_BLEND_FACTOR_INV_DST_ALPHA;
+			/// </summary>
+			mgl_enum_t dst;
+
+			/// <summary>
+			///		Alpha blend operation.
+			///		Valid values:
+			///		- MRL_BLEND_OP_ADD;
+			///		- MRL_BLEND_OP_SUBTRACT;
+			///		- MRL_BLEND_OP_REV_SUBTRACT;
+			///		- MRL_BLEND_OP_MIN;
+			///		- MRL_BLEND_OP_MAX;
+			/// </summary>
+			mgl_enum_t op;
+		} alpha;
+
+		/// <summary>
+		///		Hint list.
+		///		Hints may be ignored by some render devices.
+		///		Optional (can be NULL).
+		/// </summary>
+		const mrl_hint_t* hints;
+	};
+
+#define MRL_DEFAULT_BLEND_STATE_DESC ((mrl_blend_state_desc_t) {\
+	MGL_FALSE,\
+	{\
+		MRL_BLEND_FACTOR_SRC_ALPHA,\
+		MRL_BLEND_FACTOR_INV_SRC_ALPHA,\
+		MRL_BLEND_OP_ADD,\
+	},\
+	{\
+		MRL_BLEND_FACTOR_ONE,\
+		MRL_BLEND_FACTOR_ZERO,\
+		MRL_BLEND_OP_ADD,\
+	},\
 	NULL,\
 })
 
@@ -209,7 +770,6 @@ extern "C" {
 	1,\
 	NULL,\
 })
-
 
 	// ---- Texture formats ----
 
@@ -424,10 +984,11 @@ extern "C" {
 		MRL_TEXTURE_USAGE_RENDER_TARGET,
 	};
 
+	// ---- Max texture mip level count ----
+
 #define MRL_MAX_MIP_LEVEL_COUNT 16
 
 	// ---- Texture 1D ----
-
 
 	struct mrl_texture_1d_desc_t
 	{
@@ -1455,6 +2016,51 @@ extern "C" {
 		mgl_enum_t vsync_mode;
 
 		/// <summary>
+		///		Maximum number of framebuffers.
+		/// </summary>
+		mgl_u64_t max_framebuffer_count;
+
+		/// <summary>
+		///		Maximum number of raster states.
+		/// </summary>
+		mgl_u64_t max_raster_state_count;
+
+		/// <summary>
+		///		Maximum number of depth stencil states.
+		/// </summary>
+		mgl_u64_t max_depth_stencil_state_count;
+
+		/// <summary>
+		///		Maximum number of blend states.
+		/// </summary>
+		mgl_u64_t max_blend_state_count;
+
+		/// <summary>
+		///		Maximum number of samplers.
+		/// </summary>
+		mgl_u64_t max_sampler_count;
+
+		/// <summary>
+		///		Maximum number of 1D textures.
+		/// </summary>
+		mgl_u64_t max_texture_1d_count;
+
+		/// <summary>
+		///		Maximum number of 2D textures.
+		/// </summary>
+		mgl_u64_t max_texture_2d_count;
+
+		/// <summary>
+		///		Maximum number of 3D textures.
+		/// </summary>
+		mgl_u64_t max_texture_3d_count;
+
+		/// <summary>
+		///		Maximum number of cube maps.
+		/// </summary>
+		mgl_u64_t max_cube_map_count;
+
+		/// <summary>
 		///		Maximum number of constant buffers.
 		/// </summary>
 		mgl_u64_t max_constant_buffer_count;
@@ -1496,18 +2102,47 @@ extern "C" {
 	NULL,\
 	NULL,\
 	MRL_VSYNC_ADAPTIVE,\
+	64,\
+	256,\
+	256,\
 	256,\
 	512,\
 	512,\
+	512,\
+	512,\
+	512,\
+	512,\
+	512,\
 	256,\
 	256,\
-	256,\
+	1024,\
+	512,\
 	NULL,\
 })
 
 	typedef struct mrl_render_device_t mrl_render_device_t;
 	struct mrl_render_device_t
 	{
+		// ------- Framebuffer functions -------
+		mrl_error_t(*create_framebuffer)(mrl_render_device_t* rd, mrl_framebuffer_t** fb, const mrl_framebuffer_desc_t* desc);
+		void(*destroy_framebuffer)(mrl_render_device_t* rd, mrl_framebuffer_t* fb);
+		void(*set_framebuffer)(mrl_render_device_t* rd, mrl_framebuffer_t* fb);
+
+		// ------- Raster state functions -------
+		mrl_error_t(*create_raster_state)(mrl_render_device_t* rd, mrl_raster_state_t** s, const mrl_raster_state_desc_t* desc);
+		void(*destroy_raster_state)(mrl_render_device_t* rd, mrl_raster_state_t* s);
+		void(*set_raster_state)(mrl_render_device_t* rd, mrl_raster_state_t* s);
+
+		// ------- Depth stencil state functions -------
+		mrl_error_t(*create_depth_stencil_state)(mrl_render_device_t* rd, mrl_depth_stencil_state_t** s, const mrl_depth_stencil_state_desc_t* desc);
+		void(*destroy_depth_stencil_state)(mrl_render_device_t* rd, mrl_depth_stencil_state_t* s);
+		void(*set_depth_stencil_state)(mrl_render_device_t* rd, mrl_depth_stencil_state_t* s);
+
+		// ------- Blend state functions -------
+		mrl_error_t(*create_blend_state)(mrl_render_device_t* rd, mrl_blend_state_t** s, const mrl_blend_state_desc_t* desc);
+		void(*destroy_blend_state)(mrl_render_device_t* rd, mrl_blend_state_t* s);
+		void(*set_blend_state)(mrl_render_device_t* rd, mrl_blend_state_t* s);
+
 		// ------- Sampler functions -------
 		mrl_error_t(*create_sampler)(mrl_render_device_t* rd, mrl_sampler_t** s, const mrl_sampler_desc_t* desc);
 		void(*destroy_sampler)(mrl_render_device_t* rd, mrl_sampler_t* s);
@@ -1516,24 +2151,28 @@ extern "C" {
 		// ------- Texture 1D functions -------
 		mrl_error_t(*create_texture_1d)(mrl_render_device_t* rd, mrl_texture_1d_t** tex, const mrl_texture_1d_desc_t* desc);
 		void(*destroy_texture_1d)(mrl_render_device_t* rd, mrl_texture_1d_t* tex);
+		void(*generate_texture_1d_mipmaps)(mrl_render_device_t* rd, mrl_texture_1d_t* tex);
 		void(*bind_texture_1d)(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_texture_1d_t* tex);
 		mrl_error_t(*update_texture_1d)(mrl_render_device_t* rd, mrl_texture_1d_t* tex, const mrl_texture_1d_update_desc_t* desc);
 
 		// ------- Texture 2D functions -------
 		mrl_error_t(*create_texture_2d)(mrl_render_device_t* rd, mrl_texture_2d_t** tex, const mrl_texture_2d_desc_t* desc);
 		void(*destroy_texture_2d)(mrl_render_device_t* rd, mrl_texture_2d_t* tex);
+		void(*generate_texture_2d_mipmaps)(mrl_render_device_t* rd, mrl_texture_2d_t* tex);
 		void(*bind_texture_2d)(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_texture_2d_t* tex);
 		mrl_error_t(*update_texture_2d)(mrl_render_device_t* rd, mrl_texture_2d_t* tex, const mrl_texture_2d_update_desc_t* desc);
 
 		// ------- Texture 3D functions -------
 		mrl_error_t(*create_texture_3d)(mrl_render_device_t* rd, mrl_texture_3d_t** tex, const mrl_texture_3d_desc_t* desc);
 		void(*destroy_texture_3d)(mrl_render_device_t* rd, mrl_texture_3d_t* tex);
+		void(*generate_texture_3d_mipmaps)(mrl_render_device_t* rd, mrl_texture_3d_t* tex);
 		void(*bind_texture_3d)(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_texture_3d_t* tex);
 		mrl_error_t(*update_texture_3d)(mrl_render_device_t* rd, mrl_texture_3d_t* tex, const mrl_texture_3d_update_desc_t* desc);
 
 		// ------- Cube map functions -------
 		mrl_error_t(*create_cube_map)(mrl_render_device_t* rd, mrl_cube_map_t** cb, const mrl_cube_map_desc_t* desc);
 		void(*destroy_cube_map)(mrl_render_device_t* rd, mrl_cube_map_t* cb);
+		void(*generate_cube_map_mipmaps)(mrl_render_device_t* rd, mrl_cube_map_t* cb);
 		void(*bind_cube_map)(mrl_render_device_t* rd, mrl_shader_binding_point_t* bp, mrl_cube_map_t* cb);
 		mrl_error_t(*update_cube_map)(mrl_render_device_t* rd, mrl_cube_map_t* cb, const mrl_cube_map_update_desc_t* desc);
 
@@ -1586,6 +2225,106 @@ extern "C" {
 		const mgl_chr8_t*(*get_type_name)(mrl_render_device_t* rd);
 	};
 
+	// ------- Framebuffer functions -------
+
+	/// <summary>
+	///		Creates a new framebuffer.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="fb">Out framebuffer handle</param>
+	/// <param name="desc">Description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_create_framebuffer(mrl_render_device_t* rd, mrl_framebuffer_t** fb, const mrl_framebuffer_desc_t* desc);
+
+	/// <summary>
+	///		Destroys a framebuffer.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="fb">Framebuffer handle</param>
+	MRL_API void mrl_destroy_framebuffer(mrl_render_device_t* rd, mrl_framebuffer_t* fb);
+
+	/// <summary>
+	///		Sets a framebuffer as active.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="fb">Framebuffer handle</param>
+	MRL_API void mrl_set_framebuffer(mrl_render_device_t* rd, mrl_framebuffer_t* fb);
+
+	// ------- Raster state functions -------
+
+	/// <summary>
+	///		Creates a new raster state.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="s">Out raster state handle</param>
+	/// <param name="desc">Description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_create_raster_state(mrl_render_device_t* rd, mrl_raster_state_t** s, const mrl_raster_state_desc_t* desc);
+
+	/// <summary>
+	///		Destroys a raster state.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="s">Raster state handle</param>
+	MRL_API void mrl_destroy_raster_state(mrl_render_device_t* rd, mrl_raster_state_t* s);
+
+	/// <summary>
+	///		Sets a raster state as active.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="s">Raster state handle</param>
+	MRL_API void mrl_set_raster_state(mrl_render_device_t* rd, mrl_raster_state_t* s);
+
+	// ------- Depth stencil state functions -------
+
+	/// <summary>
+	///		Creates a new depth stencil state.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="s">Out depth stencil state handle</param>
+	/// <param name="desc">Description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_create_depth_stencil_state(mrl_render_device_t* rd, mrl_depth_stencil_state_t** s, const mrl_depth_stencil_state_desc_t* desc);
+
+	/// <summary>
+	///		Destroys a depth stencil state.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="s">Depth stencil state handle</param>
+	MRL_API void mrl_destroy_depth_stencil_state(mrl_render_device_t* rd, mrl_depth_stencil_state_t* s);
+
+	/// <summary>
+	///		Sets a depth stencil state as active.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="s">Depth stencil state handle</param>
+	MRL_API void mrl_set_depth_stencil_state(mrl_render_device_t* rd, mrl_depth_stencil_state_t* s);
+
+	// ------- Blend state functions -------
+
+	/// <summary>
+	///		Creates a new blend state.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="s">Out blend state handle</param>
+	/// <param name="desc">Description</param>
+	/// <returns>Error code</returns>
+	MRL_API mrl_error_t mrl_create_blend_state(mrl_render_device_t* rd, mrl_blend_state_t** s, const mrl_blend_state_desc_t* desc);
+
+	/// <summary>
+	///		Destroys a blend state.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="s">Blend state handle</param>
+	MRL_API void mrl_destroy_blend_state(mrl_render_device_t* rd, mrl_blend_state_t* s);
+
+	/// <summary>
+	///		Sets a blend state as active.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="s">Blend state handle</param>
+	MRL_API void mrl_set_blend_state(mrl_render_device_t* rd, mrl_blend_state_t* s);
+
 	// ------- Sampler functions -------
 
 	/// <summary>
@@ -1631,6 +2370,13 @@ extern "C" {
 	MRL_API void mrl_destroy_texture_1d(mrl_render_device_t* rd, mrl_texture_1d_t* tex);
 
 	/// <summary>
+	///		Generates mipmaps for a texture 1D.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="tex">Texture 1D handle</param>
+	MRL_API void mrl_generate_texture_1d_mipmaps(mrl_render_device_t* rd, mrl_texture_1d_t* tex);
+
+	/// <summary>
 	///		Binds a texture 1D to a shader binding point.
 	/// </summary>
 	/// <param name="rd">Render device</param>
@@ -1664,6 +2410,13 @@ extern "C" {
 	/// <param name="rd">Render device</param>
 	/// <param name="tex">Texture 2D handle</param>
 	MRL_API void mrl_destroy_texture_2d(mrl_render_device_t* rd, mrl_texture_2d_t* tex);
+
+	/// <summary>
+	///		Generates mipmaps for a texture 2D.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="tex">Texture 2D handle</param>
+	MRL_API void mrl_generate_texture_2d_mipmaps(mrl_render_device_t* rd, mrl_texture_2d_t* tex);
 
 	/// <summary>
 	///		Binds a texture 2D to a shader binding point.
@@ -1701,6 +2454,13 @@ extern "C" {
 	MRL_API void mrl_destroy_texture_3d(mrl_render_device_t* rd, mrl_texture_3d_t* tex);
 
 	/// <summary>
+	///		Generates mipmaps for a texture 3D.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="tex">Texture 3D handle</param>
+	MRL_API void mrl_generate_texture_3d_mipmaps(mrl_render_device_t* rd, mrl_texture_3d_t* tex);
+
+	/// <summary>
 	///		Binds a texture 3D to a shader binding point.
 	/// </summary>
 	/// <param name="rd">Render device</param>
@@ -1734,6 +2494,13 @@ extern "C" {
 	/// <param name="rd">Render device</param>
 	/// <param name="cb">Cube map handle</param>
 	MRL_API void mrl_destroy_cube_map(mrl_render_device_t* rd, mrl_cube_map_t* cb);
+
+	/// <summary>
+	///		Generates mipmaps for a cube map.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="cb">Cube map handle</param>
+	MRL_API void mrl_generate_cube_map_mipmaps(mrl_render_device_t* rd, mrl_cube_map_t* cb);
 
 	/// <summary>
 	///		Binds a cube map to a shader binding point.

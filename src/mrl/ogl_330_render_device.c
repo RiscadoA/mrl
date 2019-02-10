@@ -14,6 +14,23 @@
 #		include <GL/wglew.h>
 #	endif
 
+static const mgl_chr8_t* opengl_error_code_to_str(GLenum err)
+{
+	switch (err)
+	{
+		case 0: return u8"GLEW_OK";
+		case GL_INVALID_ENUM: return u8"GL_INVALID_ENUM";
+		case GL_INVALID_VALUE: return u8"GL_INVALID_VALUE";
+		case GL_INVALID_OPERATION: return u8"GL_INVALID_OPERATION";
+		case GL_STACK_OVERFLOW: return u8"GL_STACK_OVERFLOW";
+		case GL_STACK_UNDERFLOW: return u8"GL_STACK_UNDERFLOW";
+		case GL_OUT_OF_MEMORY: return u8"GL_OUT_OF_MEMORY";
+		case GL_INVALID_FRAMEBUFFER_OPERATION: return u8"GL_INVALID_FRAMEBUFFER_OPERATION";
+		case GL_CONTEXT_LOST: return u8"GL_CONTEXT_LOST";
+		default: return u8"GL_?";
+	}
+}
+
 typedef struct
 {
 	mrl_render_device_t base;
@@ -31,6 +48,60 @@ typedef struct
 
 	struct
 	{
+		struct
+		{
+			mgl_pool_allocator_t pool;
+			mgl_u8_t* data;
+		} framebuffer;
+
+		struct
+		{
+			mgl_pool_allocator_t pool;
+			mgl_u8_t* data;
+		} raster_state;
+
+		struct
+		{
+			mgl_pool_allocator_t pool;
+			mgl_u8_t* data;
+		} depth_stencil_state;
+
+		struct
+		{
+			mgl_pool_allocator_t pool;
+			mgl_u8_t* data;
+		} blend_state;
+
+		struct
+		{
+			mgl_pool_allocator_t pool;
+			mgl_u8_t* data;
+		} sampler;
+
+		struct
+		{
+			mgl_pool_allocator_t pool;
+			mgl_u8_t* data;
+		} texture_1d;
+
+		struct
+		{
+			mgl_pool_allocator_t pool;
+			mgl_u8_t* data;
+		} texture_2d;
+
+		struct
+		{
+			mgl_pool_allocator_t pool;
+			mgl_u8_t* data;
+		} texture_3d;
+
+		struct
+		{
+			mgl_pool_allocator_t pool;
+			mgl_u8_t* data;
+		} cube_map;
+
 		struct
 		{
 			mgl_pool_allocator_t pool;
@@ -80,6 +151,59 @@ typedef struct
 typedef struct
 {
 	GLuint id;
+} mrl_ogl_330_framebuffer_t;
+
+typedef struct
+{
+	GLuint id;
+} mrl_ogl_330_raster_state_t;
+
+typedef struct
+{
+	GLuint id;
+} mrl_ogl_330_depth_stencil_state_t;
+
+typedef struct
+{
+	GLuint id;
+} mrl_ogl_330_blend_state_t;
+
+typedef struct
+{
+	GLuint id;
+} mrl_ogl_330_sampler_t;
+
+typedef struct
+{
+	GLenum internal_format, format, type;
+	mgl_u64_t width;
+	GLuint id;
+} mrl_ogl_330_texture_1d_t;
+
+typedef struct
+{
+	GLenum internal_format, format, type;
+	mgl_u64_t width, height;
+	GLuint id;
+} mrl_ogl_330_texture_2d_t;
+
+typedef struct
+{
+	GLenum internal_format, format, type;
+	mgl_u64_t width, height, depth;
+	GLuint id;
+} mrl_ogl_330_texture_3d_t;
+
+typedef struct
+{
+	GLenum internal_format, format, type;
+	mgl_u64_t width, height;
+	GLuint id;
+} mrl_ogl_330_cube_map_t;
+
+typedef struct
+{
+	GLuint id;
 } mrl_ogl_330_constant_buffer_t;
 
 typedef struct
@@ -121,9 +245,489 @@ struct mrl_ogl_330_shader_pipeline_t
 	mrl_ogl_330_shader_binding_point_t bps[MRL_OGL_330_SHADER_MAX_BINDING_POINT_COUNT];
 };
 
+// ---------- Texture 1D ----------
+
+static mrl_error_t create_texture_1d(mrl_render_device_t* brd, mrl_texture_1d_t** tex, const mrl_texture_1d_desc_t* desc)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+
+	// Get internal format, format and type
+	GLenum internal_format, format, type;
+
+	switch (desc->format)
+	{
+		case MRL_TEXTURE_FORMAT_R8_UN: internal_format = GL_R8; format = GL_R; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_R8_SN: internal_format = GL_R8_SNORM; format = GL_R; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_R8_UI: internal_format = GL_R8UI; format = GL_RED_INTEGER; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_R8_SI: internal_format = GL_R8I; format = GL_RED_INTEGER; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_UN: internal_format = GL_RG8; format = GL_RG; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_SN: internal_format = GL_RG8_SNORM; format = GL_RG; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_UI: internal_format = GL_RG8UI; format = GL_RG_INTEGER; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_SI: internal_format = GL_RG8I; format = GL_RG_INTEGER; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_UN: internal_format = GL_RGBA8; format = GL_RGBA; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_SN: internal_format = GL_RGBA8_SNORM; format = GL_RGBA; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_UI: internal_format = GL_RGBA8UI; format = GL_RGBA_INTEGER; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_SI: internal_format = GL_RGBA8I; format = GL_RGBA_INTEGER; type = GL_BYTE; break;
+
+		case MRL_TEXTURE_FORMAT_R16_UN: internal_format = GL_R16; format = GL_R; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_R16_SN: internal_format = GL_R16_SNORM; format = GL_R; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_R16_UI: internal_format = GL_R16UI; format = GL_RED_INTEGER; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_R16_SI: internal_format = GL_R16I; format = GL_RED_INTEGER; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_UN: internal_format = GL_RG16; format = GL_RG; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_SN: internal_format = GL_RG16_SNORM; format = GL_RG; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_UI: internal_format = GL_RG16UI; format = GL_RG_INTEGER; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_SI: internal_format = GL_RG16I; format = GL_RG_INTEGER; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_UN: internal_format = GL_RGBA16; format = GL_RGBA; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_SN: internal_format = GL_RGBA16_SNORM; format = GL_RGBA; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_UI: internal_format = GL_RGBA16UI; format = GL_RGBA_INTEGER; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_SI: internal_format = GL_RGBA16I; format = GL_RGBA_INTEGER; type = GL_SHORT; break;
+
+		case MRL_TEXTURE_FORMAT_R32_UI: internal_format = GL_R32UI; format = GL_RED_INTEGER; type = GL_UNSIGNED_INT; break;
+		case MRL_TEXTURE_FORMAT_R32_SI: internal_format = GL_R32I; format = GL_RED_INTEGER; type = GL_INT; break;
+		case MRL_TEXTURE_FORMAT_R32_F: internal_format = GL_R32F; format = GL_R; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_RG32_UI: internal_format = GL_RG32UI; format = GL_RG_INTEGER; type = GL_UNSIGNED_INT; break;
+		case MRL_TEXTURE_FORMAT_RG32_SI: internal_format = GL_RG32I; format = GL_RG_INTEGER; type = GL_INT; break;
+		case MRL_TEXTURE_FORMAT_RG32_F: internal_format = GL_RG32F; format = GL_RG; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_RGBA32_UI: internal_format = GL_RGBA32UI; format = GL_RGBA_INTEGER; type = GL_UNSIGNED_INT; break;
+		case MRL_TEXTURE_FORMAT_RGBA32_SI: internal_format = GL_RGBA32I; format = GL_RGBA_INTEGER; type = GL_INT; break;
+		case MRL_TEXTURE_FORMAT_RGBA32_F: internal_format = GL_RGBA32F; format = GL_RGBA; type = GL_FLOAT; break;
+
+		case MRL_TEXTURE_FORMAT_D16:
+		case MRL_TEXTURE_FORMAT_D32:
+		case MRL_TEXTURE_FORMAT_D24S8:
+		case MRL_TEXTURE_FORMAT_D32S8:
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create 1D texture: depth/stencil format is not supported on 1D textures");
+			return MRL_ERROR_INVALID_PARAMS;
+
+		default:
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create 1D texture: invalid format");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	// Initialize texture
+	GLuint id;
+	glGenTextures(1, &id);
+	glBindTexture(GL_TEXTURE_1D, id);
+	for (mgl_u32_t i = 0, div = 1; i < desc->mip_level_count; ++i, div *= 2)
+		glTexImage1D(GL_TEXTURE_1D, i, internal_format, (GLsizei)(desc->width / div), 0, format, type, desc->data[i]);
+
+	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		glDeleteTextures(1, &id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
+
+	// Allocate object
+	mrl_ogl_330_texture_1d_t* obj;
+	mgl_error_t err = mgl_allocate(
+		&rd->memory.texture_1d.pool,
+		sizeof(*obj),
+		(void**)&obj);
+	if (err != MGL_ERROR_NONE)
+	{
+		glDeleteTextures(1, &id);
+		return mrl_make_mgl_error(err);
+	}
+
+	// Store texture info
+	obj->id = id;
+	obj->width = desc->width;
+	obj->internal_format = internal_format;
+	obj->format = format;
+	obj->type = type;
+	*tex = (mrl_texture_1d_t*)obj;
+
+	return MRL_ERROR_NONE;
+}
+
+static void destroy_texture_1d(mrl_render_device_t* brd, mrl_texture_1d_t* tex)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_texture_1d_t* obj = (mrl_ogl_330_texture_1d_t*)tex;
+
+	// Delete texture
+	glDeleteTextures(1, &obj->id);
+
+	// Deallocate object
+	mgl_deallocate(
+		&rd->memory.texture_1d.pool,
+		obj);
+}
+
+static void generate_texture_1d_mipmaps(mrl_render_device_t* brd, mrl_texture_2d_t* tex)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_texture_1d_t* obj = (mrl_ogl_330_texture_1d_t*)tex;
+
+	glBindTexture(GL_TEXTURE_1D, obj->id);
+	glGenerateMipmap(GL_TEXTURE_1D);
+}
+
+static void bind_texture_1d(mrl_render_device_t* brd, mrl_shader_binding_point_t* bp, mrl_texture_1d_t* tex)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_texture_1d_t* obj = (mrl_ogl_330_texture_1d_t*)tex;
+	mrl_ogl_330_shader_binding_point_t* rbp = (mrl_ogl_330_shader_binding_point_t*)bp;
+
+	// Bind texture
+	glActiveTexture(GL_TEXTURE0 + rbp->loc);
+	glBindTexture(GL_TEXTURE_1D, obj->id);
+	glUniform1i(rbp->loc, rbp->loc);
+}
+
+static mrl_error_t update_texture_1d(mrl_render_device_t* brd, mrl_texture_1d_t* tex, const mrl_texture_1d_update_desc_t* desc)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_texture_1d_t* obj = (mrl_ogl_330_texture_1d_t*)tex;
+
+	// Update texture
+	glBindTexture(GL_TEXTURE_1D, obj->id);
+	glTexSubImage1D(GL_TEXTURE_1D, desc->mip_level, (GLint)desc->dst_x, (GLsizei)desc->width, obj->format, obj->type, desc->data);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
+
+	return MRL_ERROR_NONE;
+}
+
+// ---------- Texture 2D ----------
+
+static mrl_error_t create_texture_2d(mrl_render_device_t* brd, mrl_texture_2d_t** tex, const mrl_texture_2d_desc_t* desc)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+
+	// Get internal format, format and type
+	GLenum internal_format, format, type;
+
+	switch (desc->format)
+	{
+		case MRL_TEXTURE_FORMAT_R8_UN: internal_format = GL_R8; format = GL_R; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_R8_SN: internal_format = GL_R8_SNORM; format = GL_R; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_R8_UI: internal_format = GL_R8UI; format = GL_RED_INTEGER; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_R8_SI: internal_format = GL_R8I; format = GL_RED_INTEGER; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_UN: internal_format = GL_RG8; format = GL_RG; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_SN: internal_format = GL_RG8_SNORM; format = GL_RG; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_UI: internal_format = GL_RG8UI; format = GL_RG_INTEGER; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_SI: internal_format = GL_RG8I; format = GL_RG_INTEGER; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_UN: internal_format = GL_RGBA8; format = GL_RGBA; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_SN: internal_format = GL_RGBA8_SNORM; format = GL_RGBA; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_UI: internal_format = GL_RGBA8UI; format = GL_RGBA_INTEGER; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_SI: internal_format = GL_RGBA8I; format = GL_RGBA_INTEGER; type = GL_BYTE; break;
+
+		case MRL_TEXTURE_FORMAT_R16_UN: internal_format = GL_R16; format = GL_R; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_R16_SN: internal_format = GL_R16_SNORM; format = GL_R; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_R16_UI: internal_format = GL_R16UI; format = GL_RED_INTEGER; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_R16_SI: internal_format = GL_R16I; format = GL_RED_INTEGER; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_UN: internal_format = GL_RG16; format = GL_RG; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_SN: internal_format = GL_RG16_SNORM; format = GL_RG; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_UI: internal_format = GL_RG16UI; format = GL_RG_INTEGER; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_SI: internal_format = GL_RG16I; format = GL_RG_INTEGER; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_UN: internal_format = GL_RGBA16; format = GL_RGBA; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_SN: internal_format = GL_RGBA16_SNORM; format = GL_RGBA; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_UI: internal_format = GL_RGBA16UI; format = GL_RGBA_INTEGER; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_SI: internal_format = GL_RGBA16I; format = GL_RGBA_INTEGER; type = GL_SHORT; break;
+
+		case MRL_TEXTURE_FORMAT_R32_UI: internal_format = GL_R32UI; format = GL_RED_INTEGER; type = GL_UNSIGNED_INT; break;
+		case MRL_TEXTURE_FORMAT_R32_SI: internal_format = GL_R32I; format = GL_RED_INTEGER; type = GL_INT; break;
+		case MRL_TEXTURE_FORMAT_R32_F: internal_format = GL_R32F; format = GL_R; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_RG32_UI: internal_format = GL_RG32UI; format = GL_RG_INTEGER; type = GL_UNSIGNED_INT; break;
+		case MRL_TEXTURE_FORMAT_RG32_SI: internal_format = GL_RG32I; format = GL_RG_INTEGER; type = GL_INT; break;
+		case MRL_TEXTURE_FORMAT_RG32_F: internal_format = GL_RG32F; format = GL_RG; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_RGBA32_UI: internal_format = GL_RGBA32UI; format = GL_RGBA_INTEGER; type = GL_UNSIGNED_INT; break;
+		case MRL_TEXTURE_FORMAT_RGBA32_SI: internal_format = GL_RGBA32I; format = GL_RGBA_INTEGER; type = GL_INT; break;
+		case MRL_TEXTURE_FORMAT_RGBA32_F: internal_format = GL_RGBA32F; format = GL_RGBA; type = GL_FLOAT; break;
+
+		case MRL_TEXTURE_FORMAT_D16: internal_format = GL_DEPTH; format = GL_DEPTH_COMPONENT; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_D32: internal_format = GL_DEPTH; format = GL_DEPTH_COMPONENT; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_D24S8: internal_format = GL_R32UI; format = GL_DEPTH_STENCIL; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_D32S8: internal_format = GL_R32UI; format = GL_DEPTH_STENCIL; type = GL_FLOAT; break;
+
+		default:
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create 2D texture: invalid format");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	// Initialize texture
+	GLuint id;
+	glGenTextures(1, &id);
+	glBindTexture(GL_TEXTURE_2D, id);
+	for (mgl_u32_t i = 0, div = 1; i < desc->mip_level_count; ++i, div *= 2)
+		glTexImage2D(GL_TEXTURE_2D, i, internal_format, (GLsizei)(desc->width / div), (GLsizei)(desc->height / div), 0, format, type, desc->data[i]);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		glDeleteTextures(1, &id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
+
+	// Allocate object
+	mrl_ogl_330_texture_2d_t* obj;
+	mgl_error_t err = mgl_allocate(
+		&rd->memory.texture_2d.pool,
+		sizeof(*obj),
+		(void**)&obj);
+	if (err != MGL_ERROR_NONE)
+	{
+		glDeleteTextures(1, &id);
+		return mrl_make_mgl_error(err);
+	}
+
+	// Store texture info
+	obj->id = id;
+	obj->width = desc->width;
+	obj->height = desc->height;
+	obj->internal_format = internal_format;
+	obj->format = format;
+	obj->type = type;
+	*tex = (mrl_texture_2d_t*)obj;
+
+	return MRL_ERROR_NONE;
+}
+
+static void destroy_texture_2d(mrl_render_device_t* brd, mrl_texture_2d_t* tex)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_texture_2d_t* obj = (mrl_ogl_330_texture_2d_t*)tex;
+
+	// Delete texture
+	glDeleteTextures(1, &obj->id);
+
+	// Deallocate object
+	mgl_deallocate(
+		&rd->memory.texture_2d.pool,
+		obj);
+}
+
+static void generate_texture_2d_mipmaps(mrl_render_device_t* brd, mrl_texture_2d_t* tex)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_texture_2d_t* obj = (mrl_ogl_330_texture_2d_t*)tex;
+
+	glBindTexture(GL_TEXTURE_2D, obj->id);
+	glGenerateMipmap(GL_TEXTURE_2D);
+}
+
+static void bind_texture_2d(mrl_render_device_t* brd, mrl_shader_binding_point_t* bp, mrl_texture_2d_t* tex)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_texture_2d_t* obj = (mrl_ogl_330_texture_2d_t*)tex;
+	mrl_ogl_330_shader_binding_point_t* rbp = (mrl_ogl_330_shader_binding_point_t*)bp;
+
+	// Bind texture
+	glActiveTexture(GL_TEXTURE0 + rbp->loc);
+	glBindTexture(GL_TEXTURE_2D, obj->id);
+	glUniform1i(rbp->loc, rbp->loc);
+}
+
+static mrl_error_t update_texture_2d(mrl_render_device_t* brd, mrl_texture_2d_t* tex, const mrl_texture_2d_update_desc_t* desc)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_texture_2d_t* obj = (mrl_ogl_330_texture_2d_t*)tex;
+
+	// Update texture
+	glBindTexture(GL_TEXTURE_2D, obj->id);
+	glTexSubImage2D(GL_TEXTURE_2D, desc->mip_level, (GLint)desc->dst_x, (GLint)desc->dst_y, (GLsizei)desc->width, (GLsizei)desc->height, obj->format, obj->type, desc->data);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
+
+	return MRL_ERROR_NONE;
+}
+
+// ---------- Texture 3D ----------
+
+static mrl_error_t create_texture_3d(mrl_render_device_t* brd, mrl_texture_3d_t** tex, const mrl_texture_3d_desc_t* desc)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+
+	// Get internal format, format and type
+	GLenum internal_format, format, type;
+
+	switch (desc->format)
+	{
+		case MRL_TEXTURE_FORMAT_R8_UN: internal_format = GL_R8; format = GL_R; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_R8_SN: internal_format = GL_R8_SNORM; format = GL_R; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_R8_UI: internal_format = GL_R8UI; format = GL_RED_INTEGER; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_R8_SI: internal_format = GL_R8I; format = GL_RED_INTEGER; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_UN: internal_format = GL_RG8; format = GL_RG; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_SN: internal_format = GL_RG8_SNORM; format = GL_RG; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_UI: internal_format = GL_RG8UI; format = GL_RG_INTEGER; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_SI: internal_format = GL_RG8I; format = GL_RG_INTEGER; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_UN: internal_format = GL_RGBA8; format = GL_RGBA; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_SN: internal_format = GL_RGBA8_SNORM; format = GL_RGBA; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_UI: internal_format = GL_RGBA8UI; format = GL_RGBA_INTEGER; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_SI: internal_format = GL_RGBA8I; format = GL_RGBA_INTEGER; type = GL_BYTE; break;
+	
+		case MRL_TEXTURE_FORMAT_R16_UN: internal_format = GL_R16; format = GL_R; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_R16_SN: internal_format = GL_R16_SNORM; format = GL_R; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_R16_UI: internal_format = GL_R16UI; format = GL_RED_INTEGER; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_R16_SI: internal_format = GL_R16I; format = GL_RED_INTEGER; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_UN: internal_format = GL_RG16; format = GL_RG; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_SN: internal_format = GL_RG16_SNORM; format = GL_RG; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_UI: internal_format = GL_RG16UI; format = GL_RG_INTEGER; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_SI: internal_format = GL_RG16I; format = GL_RG_INTEGER; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_UN: internal_format = GL_RGBA16; format = GL_RGBA; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_SN: internal_format = GL_RGBA16_SNORM; format = GL_RGBA; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_UI: internal_format = GL_RGBA16UI; format = GL_RGBA_INTEGER; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_SI: internal_format = GL_RGBA16I; format = GL_RGBA_INTEGER; type = GL_SHORT; break;
+
+		case MRL_TEXTURE_FORMAT_R32_UI: internal_format = GL_R32UI; format = GL_RED_INTEGER; type = GL_UNSIGNED_INT; break;
+		case MRL_TEXTURE_FORMAT_R32_SI: internal_format = GL_R32I; format = GL_RED_INTEGER; type = GL_INT; break;
+		case MRL_TEXTURE_FORMAT_R32_F: internal_format = GL_R32F; format = GL_R; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_RG32_UI: internal_format = GL_RG32UI; format = GL_RG_INTEGER; type = GL_UNSIGNED_INT; break;
+		case MRL_TEXTURE_FORMAT_RG32_SI: internal_format = GL_RG32I; format = GL_RG_INTEGER; type = GL_INT; break;
+		case MRL_TEXTURE_FORMAT_RG32_F: internal_format = GL_RG32F; format = GL_RG; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_RGBA32_UI: internal_format = GL_RGBA32UI; format = GL_RGBA_INTEGER; type = GL_UNSIGNED_INT; break;
+		case MRL_TEXTURE_FORMAT_RGBA32_SI: internal_format = GL_RGBA32I; format = GL_RGBA_INTEGER; type = GL_INT; break;
+		case MRL_TEXTURE_FORMAT_RGBA32_F: internal_format = GL_RGBA32F; format = GL_RGBA; type = GL_FLOAT; break;
+	
+		case MRL_TEXTURE_FORMAT_D16:
+		case MRL_TEXTURE_FORMAT_D32:
+		case MRL_TEXTURE_FORMAT_D24S8:
+		case MRL_TEXTURE_FORMAT_D32S8:
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create 3D texture: depth/stencil format is not supported on 3D textures");
+			return MRL_ERROR_INVALID_PARAMS;
+
+		default:
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create 3D texture: invalid format");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	// Initialize texture
+	GLuint id;
+	glGenTextures(1, &id);
+	glBindTexture(GL_TEXTURE_3D, id);
+	for (mgl_u32_t i = 0, div = 1; i < desc->mip_level_count; ++i, div *= 2)
+		glTexImage3D(GL_TEXTURE_3D, i, internal_format, (GLsizei)(desc->width / div), (GLsizei)(desc->height / div), (GLsizei)(desc->depth / div), 0, format, type, desc->data[i]);
+
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		glDeleteTextures(1, &id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
+
+	// Allocate object
+	mrl_ogl_330_texture_3d_t* obj;
+	mgl_error_t err = mgl_allocate(
+		&rd->memory.texture_3d.pool,
+		sizeof(*obj),
+		(void**)&obj);
+	if (err != MGL_ERROR_NONE)
+	{
+		glDeleteTextures(1, &id);
+		return mrl_make_mgl_error(err);
+	}
+
+	// Store texture info
+	obj->id = id;
+	obj->width = desc->width;
+	obj->height = desc->height;
+	obj->depth = desc->depth;
+	obj->internal_format = internal_format;
+	obj->format = format;
+	obj->type = type;
+	*tex = (mrl_texture_3d_t*)obj;
+
+	return MRL_ERROR_NONE;
+}
+
+static void destroy_texture_3d(mrl_render_device_t* brd, mrl_texture_3d_t* tex)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_texture_3d_t* obj = (mrl_ogl_330_texture_3d_t*)tex;
+
+	// Delete texture
+	glDeleteTextures(1, &obj->id);
+
+	// Deallocate object
+	mgl_deallocate(
+		&rd->memory.texture_3d.pool,
+		obj);
+}
+
+static void generate_texture_3d_mipmaps(mrl_render_device_t* brd, mrl_texture_2d_t* tex)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_texture_3d_t* obj = (mrl_ogl_330_texture_3d_t*)tex;
+
+	glBindTexture(GL_TEXTURE_3D, obj->id);
+	glGenerateMipmap(GL_TEXTURE_3D);
+}
+
+static void bind_texture_3d(mrl_render_device_t* brd, mrl_shader_binding_point_t* bp, mrl_texture_3d_t* tex)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_texture_3d_t* obj = (mrl_ogl_330_texture_3d_t*)tex;
+	mrl_ogl_330_shader_binding_point_t* rbp = (mrl_ogl_330_shader_binding_point_t*)bp;
+
+	// Bind texture
+	glActiveTexture(GL_TEXTURE0 + rbp->loc);
+	glBindTexture(GL_TEXTURE_3D, obj->id);
+	glUniform1i(rbp->loc, rbp->loc);
+}
+
+static mrl_error_t update_texture_3d(mrl_render_device_t* brd, mrl_texture_3d_t* tex, const mrl_texture_3d_update_desc_t* desc)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_texture_3d_t* obj = (mrl_ogl_330_texture_3d_t*)tex;
+
+	// Update texture
+	glBindTexture(GL_TEXTURE_3D, obj->id);
+	glTexSubImage3D(GL_TEXTURE_3D, desc->mip_level, (GLint)desc->dst_x, (GLint)desc->dst_y, (GLint)desc->dst_z, (GLsizei)desc->width, (GLsizei)desc->height, (GLsizei)desc->depth, obj->format, obj->type, desc->data);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
+
+	return MRL_ERROR_NONE;
+}
+
 // ---------- Constant buffers ----------
 
-static mrl_error_t create_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t** ib, const mrl_constant_buffer_desc_t* desc)
+static mrl_error_t create_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t** cb, const mrl_constant_buffer_desc_t* desc)
 {
 	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
 
@@ -162,6 +766,16 @@ static mrl_error_t create_constant_buffer(mrl_render_device_t* brd, mrl_constant
 	else
 		glBufferData(GL_UNIFORM_BUFFER, desc->size, desc->data, usage);
 
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		glDeleteBuffers(1, &id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
+
 	// Allocate object
 	mrl_ogl_330_constant_buffer_t* obj;
 	mgl_error_t err = mgl_allocate(
@@ -176,15 +790,15 @@ static mrl_error_t create_constant_buffer(mrl_render_device_t* brd, mrl_constant
 
 	// Store constant buffer info
 	obj->id = id;
-	*ib = (mrl_constant_buffer_t*)obj;
+	*cb = (mrl_constant_buffer_t*)obj;
 
 	return MRL_ERROR_NONE;
 }
 
-static void destroy_constant_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t* ib)
+static void destroy_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t* cb)
 {
 	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
-	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)ib;
+	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)cb;
 
 	// Delete constant buffer
 	glDeleteBuffers(1, &obj->id);
@@ -195,44 +809,52 @@ static void destroy_constant_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_
 		obj);
 }
 
-static void bind_constant_buffer(mrl_render_device_t* brd, mrl_shader_binding_point_t* bp, mrl_constant_buffer_t* ib)
+static void bind_constant_buffer(mrl_render_device_t* brd, mrl_shader_binding_point_t* bp, mrl_constant_buffer_t* cb)
 {
 	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
-	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)ib;
+	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)cb;
 	mrl_ogl_330_shader_binding_point_t* rbp = (mrl_ogl_330_shader_binding_point_t*)bp;
 
 	// Bind constant buffer
 	glBindBufferBase(GL_UNIFORM_BUFFER, rbp->loc, obj->id);
 }
 
-static void* map_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t* ib)
+static void* map_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t* cb)
 {
 	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
-	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)ib;
+	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)cb;
 
 	// Map UBO
 	glBindBuffer(GL_UNIFORM_BUFFER, obj->id);
 	return glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
 }
 
-static void unmap_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t* ib)
+static void unmap_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t* cb)
 {
 	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
-	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)ib;
+	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)cb;
 
 	// Unmap UBO
 	glBindBuffer(GL_UNIFORM_BUFFER, obj->id);
 	glUnmapBuffer(GL_UNIFORM_BUFFER);
 }
 
-static void update_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t* ib, mgl_u64_t offset, mgl_u64_t size, const void* data)
+static void update_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t* cb, mgl_u64_t offset, mgl_u64_t size, const void* data)
 {
 	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
-	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)ib;
+	mrl_ogl_330_constant_buffer_t* obj = (mrl_ogl_330_constant_buffer_t*)cb;
 
 	// Update UBO
 	glBindBuffer(GL_UNIFORM_BUFFER, obj->id);
 	glBufferSubData(GL_UNIFORM_BUFFER, offset, size, data);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+	}
 }
 
 static void query_constant_buffer_structure(mrl_render_device_t* brd, mrl_shader_binding_point_t* bp, mrl_constant_buffer_structure_t* cbs)
@@ -281,6 +903,14 @@ static void query_constant_buffer_structure(mrl_render_device_t* brd, mrl_shader
 		cbs->elements[i].array_stride = stride;
 		cbs->elements[i].offset = offset;
 		cbs->elements[i].size = size;
+	}
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
 	}
 }
 
@@ -338,6 +968,16 @@ static mrl_error_t create_index_buffer(mrl_render_device_t* brd, mrl_index_buffe
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, desc->size, NULL, usage);
 	else
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, desc->size, desc->data, usage);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		glDeleteBuffers(1, &id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
 
 	// Allocate object
 	mrl_ogl_330_index_buffer_t* obj;
@@ -411,6 +1051,14 @@ static void update_index_buffer(mrl_render_device_t* brd, mrl_index_buffer_t* ib
 	// Update IBO
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj->id);
 	glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, offset, size, data);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+	}
 }
 
 static mrl_error_t create_vertex_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t** vb, const mrl_vertex_buffer_desc_t* desc)
@@ -451,6 +1099,16 @@ static mrl_error_t create_vertex_buffer(mrl_render_device_t* brd, mrl_vertex_buf
 		glBufferData(GL_ARRAY_BUFFER, desc->size, NULL, usage);
 	else
 		glBufferData(GL_ARRAY_BUFFER, desc->size, desc->data, usage);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		glDeleteBuffers(1, &id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
 
 	// Allocate object
 	mrl_ogl_330_vertex_buffer_t* obj;
@@ -513,6 +1171,14 @@ static void update_vertex_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t* 
 	// Update VBO
 	glBindBuffer(GL_ARRAY_BUFFER, obj->id);
 	glBufferSubData(GL_ARRAY_BUFFER, offset, size, data);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+	}
 }
 
 static mrl_error_t create_vertex_array(mrl_render_device_t* brd, mrl_vertex_array_t** va, const mrl_vertex_array_desc_t* desc)
@@ -573,6 +1239,16 @@ static mrl_error_t create_vertex_array(mrl_render_device_t* brd, mrl_vertex_arra
 			glVertexAttribPointer(loc, (GLint)desc->elements[i].size, type, normalized, (GLsizei)desc->elements[i].buffer.stride, (const void*)desc->elements[i].buffer.offset);
 		else
 			glVertexAttribIPointer(loc, (GLint)desc->elements[i].size, type, (GLsizei)desc->elements[i].buffer.stride, (const void*)desc->elements[i].buffer.offset);
+	}
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		glDeleteVertexArrays(1, &id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
 	}
 
 	// Allocate object
@@ -656,6 +1332,15 @@ static mrl_error_t create_shader_stage(mrl_render_device_t* brd, mrl_shader_stag
 		return MRL_ERROR_FAILED_TO_COMPILE_SHADER_STAGE;
 	}
 
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		glDeleteShader(id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
+
 	// Allocate object
 	mrl_ogl_330_shader_stage_t* obj;
 	mgl_error_t err = mgl_allocate(
@@ -714,6 +1399,15 @@ static mrl_error_t create_shader_pipeline(mrl_render_device_t* brd, mrl_shader_p
 		if (rd->error_callback != NULL)
 			rd->error_callback(MRL_ERROR_FAILED_TO_LINK_SHADER_PIPELINE, info_log);
 		return MRL_ERROR_FAILED_TO_LINK_SHADER_PIPELINE;
+	}
+
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		glDeleteProgram(id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
 	}
 
 	// Allocate object
@@ -788,14 +1482,32 @@ static mrl_shader_binding_point_t* get_shader_binding_point(mrl_render_device_t*
 	{
 		loc = (GLint)glGetUniformBlockIndex(obj->id, name);
 		glUniformBlockBinding(obj->id, (GLuint)loc, (GLuint)loc);
-			if (loc == GL_INVALID_INDEX)
+		if (loc == GL_INVALID_INDEX)
+		{
+			GLenum gl_err = glGetError();
+			if (gl_err != 0)
+			{
+				if (rd->error_callback != NULL)
+					rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+				return NULL;
+			}
 			return NULL;
+		}
 	}
 
 	// Check if there are still free binding points
 	if (free_bp == NULL)
 	{
 		MGL_DEBUG_ASSERT(MGL_FALSE); // Too many binding points
+		return NULL;
+	}
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
 		return NULL;
 	}
 
@@ -941,10 +1653,152 @@ static mrl_error_t create_rd_allocators(mrl_ogl_330_render_device_t* rd, const m
 		rd->memory.constant_buffer.data,
 		MGL_POOL_ALLOCATOR_SIZE(desc->max_constant_buffer_count, sizeof(mrl_ogl_330_constant_buffer_t)));
 
+	// Create cube map pool
+	err = mgl_allocate(
+		rd->allocator,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_cube_map_count, sizeof(mrl_ogl_330_cube_map_t)),
+		(void**)&rd->memory.cube_map.data);
+	if (err != MGL_ERROR_NONE)
+		goto mgl_error_7;
+	mgl_init_pool_allocator(
+		&rd->memory.cube_map.pool,
+		desc->max_cube_map_count,
+		sizeof(mrl_ogl_330_cube_map_t),
+		rd->memory.cube_map.data,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_cube_map_count, sizeof(mrl_ogl_330_cube_map_t)));
+
+	// Create texture 3D pool
+	err = mgl_allocate(
+		rd->allocator,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_texture_3d_count, sizeof(mrl_ogl_330_texture_3d_t)),
+		(void**)&rd->memory.texture_3d.data);
+	if (err != MGL_ERROR_NONE)
+		goto mgl_error_8;
+	mgl_init_pool_allocator(
+		&rd->memory.texture_3d.pool,
+		desc->max_texture_3d_count,
+		sizeof(mrl_ogl_330_texture_3d_t),
+		rd->memory.texture_3d.data,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_texture_3d_count, sizeof(mrl_ogl_330_texture_3d_t)));
+
+	// Create texture 2D pool
+	err = mgl_allocate(
+		rd->allocator,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_texture_2d_count, sizeof(mrl_ogl_330_texture_2d_t)),
+		(void**)&rd->memory.texture_2d.data);
+	if (err != MGL_ERROR_NONE)
+		goto mgl_error_9;
+	mgl_init_pool_allocator(
+		&rd->memory.texture_2d.pool,
+		desc->max_texture_2d_count,
+		sizeof(mrl_ogl_330_texture_2d_t),
+		rd->memory.texture_2d.data,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_texture_2d_count, sizeof(mrl_ogl_330_texture_2d_t)));
+
+	// Create texture 1D pool
+	err = mgl_allocate(
+		rd->allocator,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_texture_1d_count, sizeof(mrl_ogl_330_texture_1d_t)),
+		(void**)&rd->memory.texture_1d.data);
+	if (err != MGL_ERROR_NONE)
+		goto mgl_error_10;
+	mgl_init_pool_allocator(
+		&rd->memory.texture_1d.pool,
+		desc->max_texture_1d_count,
+		sizeof(mrl_ogl_330_texture_1d_t),
+		rd->memory.texture_1d.data,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_texture_1d_count, sizeof(mrl_ogl_330_texture_1d_t)));
+
+	// Create sampler pool
+	err = mgl_allocate(
+		rd->allocator,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_sampler_count, sizeof(mrl_ogl_330_sampler_t)),
+		(void**)&rd->memory.sampler.data);
+	if (err != MGL_ERROR_NONE)
+		goto mgl_error_11;
+	mgl_init_pool_allocator(
+		&rd->memory.sampler.pool,
+		desc->max_sampler_count,
+		sizeof(mrl_ogl_330_sampler_t),
+		rd->memory.sampler.data,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_sampler_count, sizeof(mrl_ogl_330_sampler_t)));
+
+	// Create blend state pool
+	err = mgl_allocate(
+		rd->allocator,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_blend_state_count, sizeof(mrl_ogl_330_blend_state_t)),
+		(void**)&rd->memory.blend_state.data);
+	if (err != MGL_ERROR_NONE)
+		goto mgl_error_12;
+	mgl_init_pool_allocator(
+		&rd->memory.blend_state.pool,
+		desc->max_blend_state_count,
+		sizeof(mrl_ogl_330_blend_state_t),
+		rd->memory.blend_state.data,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_blend_state_count, sizeof(mrl_ogl_330_blend_state_t)));
+
+	// Create depth stencil state pool
+	err = mgl_allocate(
+		rd->allocator,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_depth_stencil_state_count, sizeof(mrl_ogl_330_depth_stencil_state_t)),
+		(void**)&rd->memory.depth_stencil_state.data);
+	if (err != MGL_ERROR_NONE)
+		goto mgl_error_13;
+	mgl_init_pool_allocator(
+		&rd->memory.depth_stencil_state.pool,
+		desc->max_depth_stencil_state_count,
+		sizeof(mrl_ogl_330_depth_stencil_state_t),
+		rd->memory.depth_stencil_state.data,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_depth_stencil_state_count, sizeof(mrl_ogl_330_depth_stencil_state_t)));
+
+	// Create raster state pool
+	err = mgl_allocate(
+		rd->allocator,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_raster_state_count, sizeof(mrl_ogl_330_raster_state_t)),
+		(void**)&rd->memory.raster_state.data);
+	if (err != MGL_ERROR_NONE)
+		goto mgl_error_14;
+	mgl_init_pool_allocator(
+		&rd->memory.raster_state.pool,
+		desc->max_raster_state_count,
+		sizeof(mrl_ogl_330_raster_state_t),
+		rd->memory.raster_state.data,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_raster_state_count, sizeof(mrl_ogl_330_raster_state_t)));
+
+	// Create framebuffer pool
+	err = mgl_allocate(
+		rd->allocator,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_framebuffer_count, sizeof(mrl_ogl_330_framebuffer_t)),
+		(void**)&rd->memory.framebuffer.data);
+	if (err != MGL_ERROR_NONE)
+		goto mgl_error_15;
+	mgl_init_pool_allocator(
+		&rd->memory.framebuffer.pool,
+		desc->max_framebuffer_count,
+		sizeof(mrl_ogl_330_framebuffer_t),
+		rd->memory.framebuffer.data,
+		MGL_POOL_ALLOCATOR_SIZE(desc->max_framebuffer_count, sizeof(mrl_ogl_330_framebuffer_t)));
+
 	return MRL_ERROR_NONE;
 
-//mgl_error_7:
-//	mgl_deallocate(rd->allocator, rd->memory.constant_buffer.data);
+mgl_error_15:
+	mgl_deallocate(rd->allocator, rd->memory.raster_state.data);
+mgl_error_14:
+	mgl_deallocate(rd->allocator, rd->memory.depth_stencil_state.data);
+mgl_error_13:
+	mgl_deallocate(rd->allocator, rd->memory.blend_state.data);
+mgl_error_12:
+	mgl_deallocate(rd->allocator, rd->memory.sampler.data);
+mgl_error_11:
+	mgl_deallocate(rd->allocator, rd->memory.texture_1d.data);
+mgl_error_10:
+	mgl_deallocate(rd->allocator, rd->memory.texture_2d.data);
+mgl_error_9:
+	mgl_deallocate(rd->allocator, rd->memory.texture_3d.data);
+mgl_error_8:
+	mgl_deallocate(rd->allocator, rd->memory.cube_map.data);
+mgl_error_7:
+	mgl_deallocate(rd->allocator, rd->memory.constant_buffer.data);
 mgl_error_6:
 	mgl_deallocate(rd->allocator, rd->memory.index_buffer.data);
 mgl_error_5:
@@ -961,6 +1815,15 @@ mgl_error_1:
 
 static void destroy_rd_allocators(mrl_ogl_330_render_device_t* rd)
 {
+	mgl_deallocate(rd->allocator, rd->memory.framebuffer.data);
+	mgl_deallocate(rd->allocator, rd->memory.raster_state.data);
+	mgl_deallocate(rd->allocator, rd->memory.depth_stencil_state.data);
+	mgl_deallocate(rd->allocator, rd->memory.blend_state.data);
+	mgl_deallocate(rd->allocator, rd->memory.sampler.data);
+	mgl_deallocate(rd->allocator, rd->memory.texture_1d.data);
+	mgl_deallocate(rd->allocator, rd->memory.texture_2d.data);
+	mgl_deallocate(rd->allocator, rd->memory.texture_3d.data);
+	mgl_deallocate(rd->allocator, rd->memory.cube_map.data);
 	mgl_deallocate(rd->allocator, rd->memory.constant_buffer.data);
 	mgl_deallocate(rd->allocator, rd->memory.index_buffer.data);
 	mgl_deallocate(rd->allocator, rd->memory.vertex_buffer.data);
@@ -971,6 +1834,27 @@ static void destroy_rd_allocators(mrl_ogl_330_render_device_t* rd)
 
 static void set_rd_functions(mrl_ogl_330_render_device_t* rd)
 {
+	// Texture 1D functions
+	rd->base.create_texture_1d = &create_texture_1d;
+	rd->base.destroy_texture_1d = &destroy_texture_1d;
+	rd->base.generate_texture_1d_mipmaps = &generate_texture_1d_mipmaps;
+	rd->base.bind_texture_1d = &bind_texture_1d;
+	rd->base.update_texture_1d = &update_texture_1d;
+
+	// Texture 2D functions
+	rd->base.create_texture_2d = &create_texture_2d;
+	rd->base.destroy_texture_2d = &destroy_texture_2d;
+	rd->base.generate_texture_2d_mipmaps = &generate_texture_2d_mipmaps;
+	rd->base.bind_texture_2d = &bind_texture_2d;
+	rd->base.update_texture_2d = &update_texture_2d;
+
+	// Texture 3D functions
+	rd->base.create_texture_3d = &create_texture_3d;
+	rd->base.destroy_texture_3d = &destroy_texture_3d;
+	rd->base.generate_texture_3d_mipmaps = &generate_texture_3d_mipmaps;
+	rd->base.bind_texture_3d = &bind_texture_3d;
+	rd->base.update_texture_3d = &update_texture_3d;
+
 	// Constant buffer functions
 	rd->base.create_constant_buffer = &create_constant_buffer;
 	rd->base.destroy_constant_buffer = &destroy_constant_buffer;
