@@ -21,6 +21,7 @@ struct
 		mrl_shader_binding_point_t* bp;
 	} shader;
 
+	mrl_sampler_t* sampler;
 	mrl_texture_2d_t* tex;
 	mrl_index_buffer_t* ibo;
 	mrl_vertex_buffer_t* vbo;
@@ -110,6 +111,19 @@ void load(void)
 
 	// Get BP
 	app.shader.bp = mrl_get_shader_binding_point(app.rd, app.shader.pipeline, u8"tex");
+
+	// Create sampler
+	{
+		mrl_sampler_desc_t desc = MRL_DEFAULT_SAMPLER_DESC;
+
+		desc.min_filter = MRL_SAMPLER_FILTER_LINEAR;
+		desc.mag_filter = MRL_SAMPLER_FILTER_LINEAR;
+
+		desc.address_u = MRL_SAMPLER_ADDRESS_MIRROR;
+		desc.address_v = MRL_SAMPLER_ADDRESS_MIRROR;
+
+		handle_error(mrl_create_sampler(app.rd, &app.sampler, &desc), u8"Failed to create sampler");
+	}
 
 	// Create texture
 	{
@@ -215,6 +229,9 @@ void unload(void)
 	// Terminate texture
 	mrl_destroy_texture_2d(app.rd, app.tex);
 
+	// Terminate sampler
+	mrl_destroy_sampler(app.rd, app.sampler);
+
 	// Terminate shader pipeline
 	mrl_destroy_shader_stage(app.rd, app.shader.pipeline);
 
@@ -287,6 +304,7 @@ int main(int argc, char** argv)
 		mrl_clear_color(app.rd, 0.0f, 0.4f, 0.8f, 1.0f);
 
 		mrl_set_shader_pipeline(app.rd, app.shader.pipeline);
+		mrl_bind_sampler(app.rd, app.shader.bp, app.sampler);
 		mrl_bind_texture_2d(app.rd, app.shader.bp, app.tex);
 		mrl_set_index_buffer(app.rd, app.ibo);
 		mrl_set_vertex_array(app.rd, app.vao);

@@ -245,6 +245,171 @@ struct mrl_ogl_330_shader_pipeline_t
 	mrl_ogl_330_shader_binding_point_t bps[MRL_OGL_330_SHADER_MAX_BINDING_POINT_COUNT];
 };
 
+// ---------- Samplers ----------
+
+static mrl_error_t create_sampler(mrl_render_device_t* brd, mrl_sampler_t** s, const mrl_sampler_desc_t* desc)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+
+	// Get address modes
+	GLenum address_u, address_v, address_w;
+
+	switch (desc->address_u)
+	{
+		case MRL_SAMPLER_ADDRESS_REPEAT: address_u = GL_REPEAT; break;
+		case MRL_SAMPLER_ADDRESS_MIRROR: address_u = GL_MIRRORED_REPEAT; break;
+		case MRL_SAMPLER_ADDRESS_CLAMP: address_u = GL_CLAMP; break;
+		case MRL_SAMPLER_ADDRESS_BORDER: address_u = GL_CLAMP_TO_BORDER; break;
+		default:
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create sampler: invalid U address mode");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->address_v)
+	{
+		case MRL_SAMPLER_ADDRESS_REPEAT: address_v = GL_REPEAT; break;
+		case MRL_SAMPLER_ADDRESS_MIRROR: address_v = GL_MIRRORED_REPEAT; break;
+		case MRL_SAMPLER_ADDRESS_CLAMP: address_v = GL_CLAMP; break;
+		case MRL_SAMPLER_ADDRESS_BORDER: address_v = GL_CLAMP_TO_BORDER; break;
+		default:
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create sampler: invalid V address mode");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->address_w)
+	{
+		case MRL_SAMPLER_ADDRESS_REPEAT: address_w = GL_REPEAT; break;
+		case MRL_SAMPLER_ADDRESS_MIRROR: address_w = GL_MIRRORED_REPEAT; break;
+		case MRL_SAMPLER_ADDRESS_CLAMP: address_w = GL_CLAMP; break;
+		case MRL_SAMPLER_ADDRESS_BORDER: address_w = GL_CLAMP_TO_BORDER; break;
+		default:
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create sampler: invalid W address mode");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	// Get filter
+
+	GLenum min_filter, mag_filter;
+
+	switch (desc->min_filter)
+	{
+		case MRL_SAMPLER_FILTER_NEAREST:
+			if (desc->mip_filter == GL_NONE)
+				min_filter = GL_NEAREST;
+			else if (desc->mip_filter == GL_NEAREST)
+				min_filter = GL_NEAREST_MIPMAP_NEAREST;
+			else if (desc->mip_filter == GL_LINEAR)
+				min_filter = GL_NEAREST_MIPMAP_LINEAR;
+			else
+			{
+				if (rd->error_callback != NULL)
+					rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create sampler: invalid mipmap filter");
+				return MRL_ERROR_INVALID_PARAMS;
+			}
+			break;
+
+		case MRL_SAMPLER_FILTER_LINEAR:
+			if (desc->mip_filter == GL_NONE)
+				min_filter = GL_LINEAR;
+			else if (desc->mip_filter == GL_NEAREST)
+				min_filter = GL_LINEAR_MIPMAP_NEAREST;
+			else if (desc->mip_filter == GL_LINEAR)
+				min_filter = GL_LINEAR_MIPMAP_LINEAR;
+			else
+			{
+				if (rd->error_callback != NULL)
+					rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create sampler: invalid mipmap filter");
+				return MRL_ERROR_INVALID_PARAMS;
+			}
+			break;
+
+		default:
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create sampler: invalid miniying filter");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->mag_filter)
+	{
+		case MRL_SAMPLER_FILTER_NEAREST: mag_filter = GL_NEAREST; break;
+		case MRL_SAMPLER_FILTER_LINEAR: mag_filter = GL_LINEAR; break;
+		default:
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create sampler: invalid magnifying filter");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	// Initialize sampler
+	GLuint id;
+	glGenSamplers(1, &id);
+	glSamplerParameteri(id, GL_TEXTURE_MIN_FILTER, min_filter);
+	glSamplerParameteri(id, GL_TEXTURE_MAG_FILTER, mag_filter);
+	if (GL_ARB_texture_filter_anisotropic)
+		glSamplerParameteri(id, GL_TEXTURE_MAX_ANISOTROPY, desc->max_anisotropy);
+	glSamplerParameteri(id, GL_TEXTURE_WRAP_S, address_u);
+	glSamplerParameteri(id, GL_TEXTURE_WRAP_T, address_v);
+	glSamplerParameteri(id, GL_TEXTURE_WRAP_R, address_w);
+	glSamplerParameterfv(id, GL_TEXTURE_BORDER_COLOR, desc->border_color);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		glDeleteBuffers(1, &id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
+
+	// Allocate object
+	mrl_ogl_330_sampler_t* obj;
+	mgl_error_t err = mgl_allocate(
+		&rd->memory.sampler.pool,
+		sizeof(*obj),
+		(void**)&obj);
+	if (err != MGL_ERROR_NONE)
+	{
+		glDeleteBuffers(1, &id);
+		return mrl_make_mgl_error(err);
+	}
+
+	// Store sampler info
+	obj->id = id;
+	*s = (mrl_sampler_t*)obj;
+
+	return MRL_ERROR_NONE;
+}
+
+static void destroy_sampler(mrl_render_device_t* brd, mrl_sampler_t* s)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_sampler_t* obj = (mrl_ogl_330_sampler_t*)s;
+
+	// Delete sampler
+	glDeleteBuffers(1, &obj->id);
+
+	// Deallocate object
+	mgl_deallocate(
+		&rd->memory.sampler.pool,
+		obj);
+}
+
+static void bind_sampler(mrl_render_device_t* brd, mrl_shader_binding_point_t* bp, mrl_sampler_t* s)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_sampler_t* obj = (mrl_ogl_330_sampler_t*)s;
+	mrl_ogl_330_shader_binding_point_t* rbp = (mrl_ogl_330_shader_binding_point_t*)bp;
+
+	// Bind sampler
+	if (s == NULL)
+		glBindSampler(rbp->loc, 0);
+	else
+		glBindSampler(rbp->loc, obj->id);
+}
+
 // ---------- Texture 1D ----------
 
 static mrl_error_t create_texture_1d(mrl_render_device_t* brd, mrl_texture_1d_t** tex, const mrl_texture_1d_desc_t* desc)
@@ -380,7 +545,10 @@ static void bind_texture_1d(mrl_render_device_t* brd, mrl_shader_binding_point_t
 
 	// Bind texture
 	glActiveTexture(GL_TEXTURE0 + rbp->loc);
-	glBindTexture(GL_TEXTURE_1D, obj->id);
+	if (tex == NULL)
+		glBindTexture(GL_TEXTURE_1D, 0);
+	else
+		glBindTexture(GL_TEXTURE_1D, obj->id);
 	glUniform1i(rbp->loc, rbp->loc);
 }
 
@@ -538,7 +706,10 @@ static void bind_texture_2d(mrl_render_device_t* brd, mrl_shader_binding_point_t
 
 	// Bind texture
 	glActiveTexture(GL_TEXTURE0 + rbp->loc);
-	glBindTexture(GL_TEXTURE_2D, obj->id);
+	if (tex == NULL)
+		glBindTexture(GL_TEXTURE_2D, 0);
+	else
+		glBindTexture(GL_TEXTURE_2D, obj->id);
 	glUniform1i(rbp->loc, rbp->loc);
 }
 
@@ -700,7 +871,10 @@ static void bind_texture_3d(mrl_render_device_t* brd, mrl_shader_binding_point_t
 
 	// Bind texture
 	glActiveTexture(GL_TEXTURE0 + rbp->loc);
-	glBindTexture(GL_TEXTURE_3D, obj->id);
+	if (tex == NULL)
+		glBindTexture(GL_TEXTURE_3D, 0);
+	else
+		glBindTexture(GL_TEXTURE_3D, obj->id);
 	glUniform1i(rbp->loc, rbp->loc);
 }
 
@@ -816,7 +990,10 @@ static void bind_constant_buffer(mrl_render_device_t* brd, mrl_shader_binding_po
 	mrl_ogl_330_shader_binding_point_t* rbp = (mrl_ogl_330_shader_binding_point_t*)bp;
 
 	// Bind constant buffer
-	glBindBufferBase(GL_UNIFORM_BUFFER, rbp->loc, obj->id);
+	if (cb == NULL)
+		glBindBufferBase(GL_UNIFORM_BUFFER, rbp->loc, 0);
+	else
+		glBindBufferBase(GL_UNIFORM_BUFFER, rbp->loc, obj->id);
 }
 
 static void* map_constant_buffer(mrl_render_device_t* brd, mrl_constant_buffer_t* cb)
@@ -999,7 +1176,7 @@ static mrl_error_t create_index_buffer(mrl_render_device_t* brd, mrl_index_buffe
 	return MRL_ERROR_NONE;
 }
 
-static void destroy_index_buffer(mrl_render_device_t* brd, mrl_vertex_buffer_t* ib)
+static void destroy_index_buffer(mrl_render_device_t* brd, mrl_index_buffer_t* ib)
 {
 	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
 	mrl_ogl_330_index_buffer_t* obj = (mrl_ogl_330_index_buffer_t*)ib;
@@ -1019,8 +1196,13 @@ static void set_index_buffer(mrl_render_device_t* brd, mrl_index_buffer_t* ib)
 	mrl_ogl_330_index_buffer_t* obj = (mrl_ogl_330_index_buffer_t*)ib;
 
 	// Set index buffer
-	rd->state.index_buffer_format = obj->format;
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj->id);
+	if (obj == NULL)
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	else
+	{
+		rd->state.index_buffer_format = obj->format;
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj->id);
+	}
 }
 
 static void* map_index_buffer(mrl_render_device_t* brd, mrl_index_buffer_t* ib)
@@ -1290,7 +1472,10 @@ static void set_vertex_array(mrl_render_device_t* brd, mrl_shader_pipeline_t* va
 	mrl_ogl_330_vertex_array_t* obj = (mrl_ogl_330_vertex_array_t*)va;
 
 	// Set vertex array
-	glBindVertexArray(obj->id);
+	if (va == NULL)
+		glBindVertexArray(0);
+	else
+		glBindVertexArray(obj->id);
 }
 
 // -------- Shaders ----------
@@ -1454,7 +1639,10 @@ static void set_shader_pipeline(mrl_render_device_t* brd, mrl_shader_pipeline_t*
 	mrl_ogl_330_shader_pipeline_t* obj = (mrl_ogl_330_shader_pipeline_t*)pipeline;
 
 	// Set program
-	glUseProgram(obj->id);
+	if (pipeline == NULL)
+		glUseProgram(0);
+	else
+		glUseProgram(obj->id);
 }
 
 static mrl_shader_binding_point_t* get_shader_binding_point(mrl_render_device_t* brd, mrl_shader_pipeline_t* pipeline, const mgl_chr8_t* name)
@@ -1834,6 +2022,11 @@ static void destroy_rd_allocators(mrl_ogl_330_render_device_t* rd)
 
 static void set_rd_functions(mrl_ogl_330_render_device_t* rd)
 {
+	// Sampler functions
+	rd->base.create_sampler = &create_sampler;
+	rd->base.destroy_sampler = &destroy_sampler;
+	rd->base.bind_sampler = &bind_sampler;
+
 	// Texture 1D functions
 	rd->base.create_texture_1d = &create_texture_1d;
 	rd->base.destroy_texture_1d = &destroy_texture_1d;
@@ -2062,6 +2255,8 @@ MRL_API mrl_error_t mrl_init_ogl_330_render_device(const mrl_render_device_desc_
 		mgl_deallocate(rd->allocator, rd);
 		return err;
 	}
+
+	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
 	// Set render device funcs
 	set_rd_functions(rd);
