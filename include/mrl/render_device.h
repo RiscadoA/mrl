@@ -51,6 +51,13 @@ extern "C" {
 	typedef void mrl_shader_pipeline_t;
 	typedef void mrl_shader_binding_point_t;
 
+	// ----- Property names -----
+	
+	enum
+	{
+		MRL_PROPERTY_MAX_ANISTROPY
+	};
+
 	// ----- Hints -----
 
 	enum
@@ -60,14 +67,14 @@ extern "C" {
 		///		The pointer to the warning callback function pointer is stored on the 'data' member of the hint.
 		///		The function pointer is of the type mrl_render_device_hint_warning_callback_t.
 		/// </summary>
-		MRL_HINT_WARNING_CALLBACK,
+		MRL_HINT_RENDER_DEVICE_WARNING_CALLBACK,
 
 		/// <summary>
 		///		Hints that the render device should call a function when an error occurs.
 		///		The pointer to the error callback function pointer is stored on the 'data' member of the hint.
 		/// The function pointer is of the type mrl_render_device_hint_error_callback_t.
 		/// </summary>
-		MRL_HINT_ERROR_CALLBACK,
+		MRL_HINT_RENDER_DEVICE_ERROR_CALLBACK,
 	};
 
 	struct mrl_hint_t
@@ -254,8 +261,8 @@ extern "C" {
 	};
 
 #define MRL_DEFAULT_RASTER_STATE_DESC ((mrl_raster_state_desc_t) {\
-	MGL_TRUE,\
-	MRL_WINDING_CW,\
+	MGL_FALSE,\
+	MRL_WINDING_CCW,\
 	MRL_FACE_BACK,\
 	MRL_RASTER_MODE_FILL,\
 	NULL,\
@@ -486,8 +493,8 @@ extern "C" {
 
 #define MRL_DEFAULT_DEPTH_STENCIL_STATE_DESC ((mrl_depth_stencil_state_desc_t) {\
 	{\
-		MGL_TRUE,\
-		MGL_TRUE,\
+		MGL_FALSE,\
+		MGL_FALSE,\
 		0.1f,\
 		1000.0f,\
 		MRL_COMPARE_LESS,\
@@ -746,7 +753,7 @@ extern "C" {
 		///		Max anisotropic samples used while filtering.
 		///		Set to 1 to disable anisotropic filtering.
 		///		This feature may not be supported on some GPUs, and if it is not, it will be ignored.
-		///		Valid values: 1 - MRL_MAX_ANISOTROPY. 
+		///		Valid values: 1 - MRL_PROPERTY_MAX_ANISTROPY. 
 		/// </summary>
 		mgl_u32_t max_anisotropy;
 
@@ -2219,9 +2226,14 @@ extern "C" {
 		void(*swap_buffers)(mrl_render_device_t* rd);
 		void(*draw_triangles)(mrl_render_device_t* rd, mgl_u64_t offset, mgl_u64_t count);
 		void(*draw_triangles_indexed)(mrl_render_device_t* rd, mgl_u64_t offset, mgl_u64_t count);
+		void(*draw_triangles_instanced)(mrl_render_device_t* rd, mgl_u64_t offset, mgl_u64_t count, mgl_u64_t instance_count);
+		void(*draw_triangles_indexed_instanced)(mrl_render_device_t* rd, mgl_u64_t offset, mgl_u64_t count, mgl_u64_t instance_count);
+		void(*set_viewport)(mrl_render_device_t* rd, mgl_i32_t x, mgl_i32_t y, mgl_i32_t w, mgl_i32_t h);
 
 		// ----------- Getters -----------
 		const mgl_chr8_t*(*get_type_name)(mrl_render_device_t* rd);
+		mgl_i64_t(*get_property_i)(mrl_render_device_t* rd, mgl_enum_t name);
+		mgl_f64_t(*get_property_f)(mrl_render_device_t* rd, mgl_enum_t name);
 	};
 
 	// ------- Framebuffer functions -------
@@ -2793,6 +2805,34 @@ extern "C" {
 	/// <param name="count">Number of indexes to render</param>
 	MRL_API void mrl_draw_triangles_indexed(mrl_render_device_t* rd, mgl_u64_t offset, mgl_u64_t count);
 
+	/// <summary>
+	///		Draws triangles multiple times.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="offset">First vertex offset</param>
+	/// <param name="count">Number of vertexes to render</param>
+	/// <param name="instance_count">Number of instances to render</param>
+	MRL_API void mrl_draw_triangles_instanced(mrl_render_device_t* rd, mgl_u64_t offset, mgl_u64_t count, mgl_u64_t instance_count);
+
+	/// <summary>
+	///		Draws triangles using an index buffer multiple times.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="offset">First index offset</param>
+	/// <param name="count">Number of indexes to render</param>
+	/// <param name="instance_count">Number of instances to render</param>
+	MRL_API void mrl_draw_triangles_indexed_instanced(mrl_render_device_t* rd, mgl_u64_t offset, mgl_u64_t count, mgl_u64_t instance_count);
+
+	/// <summary>
+	///		Sets the current viewport.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="x">Bottom left viewport corner X coordinate</param>
+	/// <param name="y">Bottom left viewport corner Y coordinate</param>
+	/// <param name="w">Viewport width</param>
+	/// <param name="h">Viewport height</param>
+	MRL_API void mrl_set_viewport(mrl_render_device_t* rd, mgl_i32_t x, mgl_i32_t y, mgl_i32_t w, mgl_i32_t h);
+
 	// -------- Getters --------
 
 	/// <summary>
@@ -2801,6 +2841,22 @@ extern "C" {
 	/// <param name="rd">Render device</param>
 	/// <returns>Render device type name</returns>
 	MRL_API const mgl_chr8_t* mrl_get_type_name(mrl_render_device_t* rd);
+
+	/// <summary>
+	///		Gets an integer property from a render device.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="name">Property name</param>
+	/// <returns>Property value</returns>
+	MRL_API mgl_i64_t mrl_get_property_i(mrl_render_device_t* rd, mgl_enum_t name);
+
+	/// <summary>
+	///		Gets a floating point property from a render device.
+	/// </summary>
+	/// <param name="rd">Render device</param>
+	/// <param name="name">Property name</param>
+	/// <returns>Property value</returns>
+	MRL_API mgl_f64_t mrl_get_property_f(mrl_render_device_t* rd, mgl_enum_t name);
 
 #ifdef __cplusplus
 }

@@ -4,8 +4,18 @@
 #include <mgl/string/manipulation.h>
 #include <mgl/memory/allocator.h>
 #include <mgl/entry.h>
+#include <mgl/time/sleep.h>
 
 #include <stddef.h>
+
+// Set texture 2
+// Draw into framebuffer 1 
+// Set texture 1
+// Draw into framebuffer 2
+// Draw into screen framebuffer
+// Set texture 2
+// Draw into framebuffer 1 
+// (...)
 
 struct
 {
@@ -18,16 +28,16 @@ struct
 		mrl_shader_stage_t* vertex;
 		mrl_shader_stage_t* pixel;
 		mrl_shader_pipeline_t* pipeline;
-
-		mrl_shader_binding_point_t* cb_bp;
+		mrl_shader_binding_point_t* bp;
 	} shader;
-	
-	struct
-	{
-		mgl_u64_t color_offset;
-	} cb_struct;
 
-	mrl_constant_buffer_t* cbo;
+	mrl_framebuffer_t* fb1;
+	mrl_framebuffer_t* fb2;
+
+	mrl_sampler_t* sampler;
+	mrl_texture_2d_t* start_tex;
+	mrl_texture_2d_t* tex1;
+	mrl_texture_2d_t* tex2;
 	mrl_index_buffer_t* ibo;
 	mrl_vertex_buffer_t* vbo;
 	mrl_vertex_array_t* vao;
@@ -36,7 +46,7 @@ struct
 typedef struct
 {
 	mgl_f32_t x, y;
-	mgl_f32_t r, g, b, a;
+	mgl_f32_t u, v;
 } my_vertex_t;
 
 void handle_error(mrl_error_t error, const mgl_chr8_t* msg);
@@ -55,7 +65,7 @@ void load(void)
 		mrl_render_device_hint_error_callback_t error_callback = &render_device_error_callback;
 
 		mrl_hint_t hint = MRL_DEFAULT_HINT;
-		hint.type = MRL_HINT_ERROR_CALLBACK;
+		hint.type = MRL_HINT_RENDER_DEVICE_ERROR_CALLBACK;
 		hint.data = &error_callback;
 
 		mrl_render_device_desc_t desc = MRL_DEFAULT_RENDER_DEVICE_DESC;
@@ -72,16 +82,16 @@ void load(void)
 		mrl_shader_stage_desc_t desc = MRL_DEFAULT_SHADER_STAGE_DESC;
 		desc.stage = MRL_SHADER_STAGE_VERTEX;
 		desc.src_type = MRL_SHADER_SOURCE_GLSL;
-		desc.src = 
+		desc.src =
 			"#version 330 core\n"
-			
-			"in vec2 position;"
-			"in vec4 color;"
 
-			"out vec4 frag_color;"
-			
+			"in vec2 position;"
+			"in vec2 uvs;"
+
+			"out vec2 frag_uvs;"
+
 			"void main() {"
-			"	frag_color = color;"
+			"	frag_uvs = uvs;"
 			"	gl_Position = vec4(position, 0.0, 1.0);"
 			"}";
 
@@ -95,11 +105,11 @@ void load(void)
 		desc.src_type = MRL_SHADER_SOURCE_GLSL;
 		desc.src =
 			"#version 330 core\n"
-			"in vec4 frag_color;"
+			"in vec2 frag_uvs;"
 			"out vec4 color;"
-			"uniform material_cb { vec4 color; } material;"
+			"uniform sampler2D tex;"
 			"void main() {"
-			"	color = frag_color * material.color;"
+			"	color = texture(tex, frag_uvs);"
 			"}";
 
 		handle_error(mrl_create_shader_stage(app.rd, &app.shader.pixel, &desc), u8"Failed to create pixel shader stage");
@@ -114,23 +124,65 @@ void load(void)
 		handle_error(mrl_create_shader_pipeline(app.rd, &app.shader.pipeline, &desc), u8"Failed to create shader pipeline");
 	}
 
-	// Get CB BP
-	app.shader.cb_bp = mrl_get_shader_binding_point(app.rd, app.shader.pipeline, u8"material_cb");
+	// Get BP
+	app.shader.bp = mrl_get_shader_binding_point(app.rd, app.shader.pipeline, u8"tex");
 
-	// Init CBO
+	// Create sampler
 	{
-		mrl_constant_buffer_structure_t cbs;
-		mrl_query_constant_buffer_structure(app.rd, app.shader.cb_bp, &cbs);
+		mrl_sampler_desc_t desc = MRL_DEFAULT_SAMPLER_DESC;
 
-		MGL_DEBUG_ASSERT(mgl_str_equal(u8"color", cbs.elements[0].name));
-		app.cb_struct.color_offset = cbs.elements[0].offset;
+		desc.min_filter = MRL_SAMPLER_FILTER_LINEAR;
+		desc.mag_filter = MRL_SAMPLER_FILTER_LINEAR;
+		desc.max_anisotropy = (mgl_u32_t)mrl_get_property_i(app.rd, MRL_PROPERTY_MAX_ANISTROPY);
 
-		mrl_constant_buffer_desc_t desc = MRL_DEFAULT_CONSTANT_BUFFER_DESC;
-		desc.data = NULL;
-		desc.size = cbs.size;
-		desc.usage = MRL_CONSTANT_BUFFER_USAGE_DYNAMIC;
+		desc.address_u = MRL_SAMPLER_ADDRESS_MIRROR;
+		desc.address_v = MRL_SAMPLER_ADDRESS_MIRROR;
 
-		handle_error(mrl_create_constant_buffer(app.rd, &app.cbo, &desc), u8"Failed to create constant buffer");
+		handle_error(mrl_create_sampler(app.rd, &app.sampler, &desc), u8"Failed to create sampler");
+	}
+
+	// Create textures
+	{
+		mrl_texture_2d_desc_t desc = MRL_DEFAULT_TEXTURE_2D_DESC;
+
+		desc.usage = MRL_TEXTURE_USAGE_RENDER_TARGET;
+		desc.format = MRL_TEXTURE_FORMAT_RGBA32_F;
+		desc.width = 800;
+		desc.height = 600;
+
+		handle_error(mrl_create_texture_2d(app.rd, &app.tex1, &desc), u8"Failed to create texture 1");
+		handle_error(mrl_create_texture_2d(app.rd, &app.tex2, &desc), u8"Failed to create texture 2");
+
+		desc = MRL_DEFAULT_TEXTURE_2D_DESC;
+
+		mgl_u8_t data[] =
+		{
+			255, 0, 0, 255,
+			0, 255, 0, 255,
+			0, 0, 255, 255,
+			255, 0, 255, 255,
+		};
+
+		desc.format = MRL_TEXTURE_FORMAT_RGBA8_UN;
+		desc.width = 2;
+		desc.height = 2;
+		desc.data[0] = data;
+
+		handle_error(mrl_create_texture_2d(app.rd, &app.start_tex, &desc), u8"Failed to create starting texture");
+	}
+
+	// Create framebuffers
+	{
+		mrl_framebuffer_desc_t desc = MRL_DEFAULT_FRAMEBUFFER_DESC;
+		desc.target_count = 1;
+
+		desc.targets[0].type = MRL_RENDER_TARGET_TYPE_TEXTURE_2D;
+		desc.targets[0].tex_2d.handle = app.tex1;
+		handle_error(mrl_create_framebuffer(app.rd, &app.fb1, &desc), u8"Failed to create framebuffer 1");
+
+		desc.targets[0].type = MRL_RENDER_TARGET_TYPE_TEXTURE_2D;
+		desc.targets[0].tex_2d.handle = app.tex2;
+		handle_error(mrl_create_framebuffer(app.rd, &app.fb2, &desc), u8"Failed to create framebuffer 2");
 	}
 
 	// Init IBO
@@ -152,10 +204,18 @@ void load(void)
 
 	// Init VBO
 	{
+		my_vertex_t data[] =
+		{
+			{ -0.9f, -0.9f, 0.0f, 0.0f },
+			{ +0.9f, -0.9f, 1.0f, 0.0f },
+			{ +0.9f, +0.9f, 1.0f, 1.0f },
+			{ -0.9f, +0.9f, 0.0f, 1.0f },
+		};
+
 		mrl_vertex_buffer_desc_t desc = MRL_DEFAULT_VERTEX_BUFFER_DESC;
-		desc.data = NULL;
+		desc.data = data;
 		desc.size = sizeof(my_vertex_t) * 4;
-		desc.usage = MRL_VERTEX_BUFFER_USAGE_DYNAMIC;
+		desc.usage = MRL_VERTEX_BUFFER_USAGE_STATIC;
 
 		handle_error(mrl_create_vertex_buffer(app.rd, &app.vbo, &desc), u8"Failed to create vertex buffer");
 	}
@@ -176,13 +236,13 @@ void load(void)
 		desc.elements[0].buffer.stride = sizeof(my_vertex_t);
 
 		desc.elements[1] = MRL_DEFAULT_VERTEX_ELEMENT;
-		mgl_str_copy(u8"color", desc.elements[1].name, MRL_MAX_VERTEX_ELEMENT_NAME_SIZE);
-		desc.elements[1].size = 4;
+		mgl_str_copy(u8"uvs", desc.elements[1].name, MRL_MAX_VERTEX_ELEMENT_NAME_SIZE);
+		desc.elements[1].size = 2;
 		desc.elements[1].type = MRL_VERTEX_ELEMENT_TYPE_F32;
 		desc.elements[1].buffer.index = 0;
-		desc.elements[1].buffer.offset = offsetof(my_vertex_t, r);
+		desc.elements[1].buffer.offset = offsetof(my_vertex_t, u);
 		desc.elements[1].buffer.stride = sizeof(my_vertex_t);
-		
+
 		// Set VBOs
 		desc.buffer_count = 1;
 		desc.buffers[0] = app.vbo;
@@ -205,8 +265,17 @@ void unload(void)
 	// Terminate index buffer
 	mrl_destroy_index_buffer(app.rd, app.ibo);
 
-	// Terminate constant buffer
-	mrl_destroy_constant_buffer(app.rd, app.cbo);
+	// Terminate framebuffers
+	mrl_destroy_framebuffer(app.rd, app.fb2);
+	mrl_destroy_framebuffer(app.rd, app.fb1);
+
+	// Terminate textures
+	mrl_destroy_texture_2d(app.rd, app.start_tex);
+	mrl_destroy_texture_2d(app.rd, app.tex2);
+	mrl_destroy_texture_2d(app.rd, app.tex1);
+
+	// Terminate sampler
+	mrl_destroy_sampler(app.rd, app.sampler);
 
 	// Terminate shader pipeline
 	mrl_destroy_shader_stage(app.rd, app.shader.pipeline);
@@ -256,77 +325,42 @@ int main(int argc, char** argv)
 
 	load();
 
-	mgl_bool_t decrease = MGL_FALSE;
-	mgl_f32_t change = 0.0f;
+	// Set pipeline, sampler, vertex array, index buffer and viewport
+	mrl_set_shader_pipeline(app.rd, app.shader.pipeline);
+	mrl_bind_sampler(app.rd, app.shader.bp, app.sampler);
+	mrl_set_index_buffer(app.rd, app.ibo);
+	mrl_set_vertex_array(app.rd, app.vao);
+	mrl_set_viewport(app.rd, 0, 0, 800, 600);
+
+	// Initial draw to texture 2
+	mrl_set_framebuffer(app.rd, app.fb2);
+	mrl_bind_texture_2d(app.rd, app.shader.bp, app.start_tex);
+	mrl_draw_triangles_indexed(app.rd, 0, 6);
 
 	// Main loop
 	while (app.running)
 	{
-		if (decrease)
-		{
-			change -= 0.01f;
-			if (change <= -0.5f)
-				decrease = MGL_FALSE;
-		}
-		else
-		{
-			change += 0.01f;
-			if (change >= +0.5f)
-				decrease = MGL_TRUE;
-		}
-
 		mgl_poll_window_events(&app.window);
-
-		mrl_clear_color(app.rd, 0.0f, 0.4f, 0.8f, 1.0f);
-
-		// Update constant buffer
-		{
-			mgl_chr8_t* data = (mgl_chr8_t*)mrl_map_constant_buffer(app.rd, app.cbo);
-			mgl_f32_t* color = (mgl_f32_t*)data + app.cb_struct.color_offset;
-			color[0] = 0.5f + change;
-			color[1] = 0.5f - change;
-			color[2] = 0.5f + change;
-			color[3] = 1.0f;
-			mrl_unmap_constant_buffer(app.rd, app.cbo);
-		}
-
-		// Update vertex buffer
-		{
-			my_vertex_t* data = (my_vertex_t*)mrl_map_vertex_buffer(app.rd, app.vbo);
-			
-			data[0] = (my_vertex_t) {
-				-0.5f + change, -0.5f,
-				1.0f, 0.0f, 0.0f, 1.0f,
-			};
-
-			data[1] = (my_vertex_t)
-			{
-				+0.5f + change, -0.5f,
-				0.0f, 1.0f, 0.0f, 1.0f,
-			};
-
-			data[2] = (my_vertex_t)
-			{
-				+0.5f + change, +0.5f,
-				0.0f, 0.0f, 1.0f, 1.0f,
-			};
-
-			data[3] = (my_vertex_t)
-			{
-				-0.5f + change, +0.5f,
-				1.0f, 0.0f, 1.0f, 1.0f,
-			};
-
-			mrl_unmap_vertex_buffer(app.rd, app.vbo);
-		}
-
-		mrl_set_shader_pipeline(app.rd, app.shader.pipeline);
-		mrl_set_index_buffer(app.rd, app.ibo);
-		mrl_set_vertex_array(app.rd, app.vao);
-		mrl_bind_constant_buffer(app.rd, app.shader.cb_bp, app.cbo);
+		
+		// Draw to texture 1
+		mrl_set_framebuffer(app.rd, app.fb1);
+		mrl_bind_texture_2d(app.rd, app.shader.bp, app.tex2);
 		mrl_draw_triangles_indexed(app.rd, 0, 6);
 
+		// Draw to texture 2
+		mrl_set_framebuffer(app.rd, app.fb2);
+		mrl_bind_texture_2d(app.rd, app.shader.bp, app.tex1);
+		mrl_draw_triangles_indexed(app.rd, 0, 6);
+
+		// Draw to screen
+		mrl_set_framebuffer(app.rd, NULL);
+		mrl_bind_texture_2d(app.rd, app.shader.bp, app.tex2);
+		mrl_draw_triangles_indexed(app.rd, 0, 6);
+
+		// Swap buffers
 		mrl_swap_buffers(app.rd);
+
+		mgl_sleep(mgl_from_milliseconds(100));
 	}
 
 	unload();

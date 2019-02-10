@@ -409,8 +409,38 @@ MRL_API void mrl_draw_triangles_indexed(mrl_render_device_t * rd, mgl_u64_t offs
 	rd->draw_triangles_indexed(rd, offset, count);
 }
 
+MRL_API void mrl_draw_triangles_instanced(mrl_render_device_t * rd, mgl_u64_t offset, mgl_u64_t count, mgl_u64_t instance_count)
+{
+	MGL_DEBUG_ASSERT(rd != NULL);
+	rd->draw_triangles_instanced(rd, offset, count, instance_count);
+}
+
+MRL_API void mrl_draw_triangles_indexed_instanced(mrl_render_device_t * rd, mgl_u64_t offset, mgl_u64_t count, mgl_u64_t instance_count)
+{
+	MGL_DEBUG_ASSERT(rd != NULL);
+	rd->draw_triangles_indexed_instanced(rd, offset, count, instance_count);
+}
+
+MRL_API void mrl_set_viewport(mrl_render_device_t * rd, mgl_i32_t x, mgl_i32_t y, mgl_i32_t w, mgl_i32_t h)
+{
+	MGL_DEBUG_ASSERT(rd != NULL);
+	rd->set_viewport(rd, x, y, w, h);
+}
+
 MRL_API const mgl_chr8_t * mrl_get_type_name(mrl_render_device_t * rd)
 {
 	MGL_DEBUG_ASSERT(rd != NULL);
 	return rd->get_type_name(rd);
+}
+
+MRL_API mgl_i64_t mrl_get_property_i(mrl_render_device_t * rd, mgl_enum_t name)
+{
+	MGL_DEBUG_ASSERT(rd != NULL);
+	return rd->get_property_i(rd, name);
+}
+
+MRL_API mgl_f64_t mrl_get_property_f(mrl_render_device_t * rd, mgl_enum_t name)
+{
+	MGL_DEBUG_ASSERT(rd != NULL);
+	return rd->get_property_f(rd, name);
 }

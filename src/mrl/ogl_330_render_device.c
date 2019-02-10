@@ -5,6 +5,7 @@
 #include <mgl/memory/pool_allocator.h>
 #include <mgl/string/manipulation.h>
 #include <mgl/input/window.h>
+#include <mgl/math/scalar.h>
 
 #ifdef MRL_BUILD_OGL_330
 #	ifdef MGL_SYSTEM_WINDOWS
@@ -30,6 +31,131 @@ static const mgl_chr8_t* opengl_error_code_to_str(GLenum err)
 		default: return u8"GL_?";
 	}
 }
+
+typedef struct
+{
+	GLuint id;
+} mrl_ogl_330_framebuffer_t;
+
+typedef struct
+{
+	GLboolean cull_enabled;
+	GLenum front_face;
+	GLenum cull_face;
+	GLenum polygon_mode;
+} mrl_ogl_330_raster_state_t;
+
+typedef struct
+{
+	GLboolean depth_enabled;
+	GLboolean depth_write_enabled;
+	GLfloat depth_near;
+	GLfloat depth_far;
+	GLenum depth_func;
+
+	GLuint stencil_ref;
+	GLboolean stencil_enabled;
+	GLuint stencil_read_mask;
+	GLuint stencil_write_mask;
+
+	GLenum front_stencil_func;
+	GLenum front_face_stencil_fail;
+	GLenum front_face_stencil_pass;
+	GLenum front_face_depth_fail;
+
+	GLenum back_stencil_func;
+	GLenum back_face_stencil_fail;
+	GLenum back_face_stencil_pass;
+	GLenum back_face_depth_fail;
+} mrl_ogl_330_depth_stencil_state_t;
+
+typedef struct
+{
+	GLboolean blend_enabled;
+	GLenum src_factor;
+	GLenum dst_factor;
+	GLenum blend_op;
+	GLenum src_alpha_factor;
+	GLenum dst_alpha_factor;
+	GLenum alpha_blend_op;
+} mrl_ogl_330_blend_state_t;
+
+typedef struct
+{
+	GLuint id;
+} mrl_ogl_330_sampler_t;
+
+typedef struct
+{
+	GLenum internal_format, format, type;
+	mgl_u64_t width;
+	GLuint id;
+} mrl_ogl_330_texture_1d_t;
+
+typedef struct
+{
+	GLenum internal_format, format, type;
+	mgl_u64_t width, height;
+	GLuint id;
+} mrl_ogl_330_texture_2d_t;
+
+typedef struct
+{
+	GLenum internal_format, format, type;
+	mgl_u64_t width, height, depth;
+	GLuint id;
+} mrl_ogl_330_texture_3d_t;
+
+typedef struct
+{
+	GLenum internal_format, format, type;
+	mgl_u64_t width, height;
+	GLuint id;
+} mrl_ogl_330_cube_map_t;
+
+typedef struct
+{
+	GLuint id;
+} mrl_ogl_330_constant_buffer_t;
+
+typedef struct
+{
+	GLuint id;
+	GLenum format;
+} mrl_ogl_330_index_buffer_t;
+
+typedef struct
+{
+	GLuint id;
+} mrl_ogl_330_vertex_buffer_t;
+
+typedef struct
+{
+	GLuint id;
+} mrl_ogl_330_vertex_array_t;
+
+typedef struct
+{
+	GLuint id;
+} mrl_ogl_330_shader_stage_t;
+
+#define MRL_OGL_330_SHADER_BINDING_POINT_MAX_NAME_SIZE 32
+#define MRL_OGL_330_SHADER_MAX_BINDING_POINT_COUNT 32
+
+typedef struct mrl_ogl_330_shader_pipeline_t mrl_ogl_330_shader_pipeline_t;
+
+typedef struct
+{
+	mgl_chr8_t name[MRL_OGL_330_SHADER_BINDING_POINT_MAX_NAME_SIZE];
+	GLint loc;
+	mrl_ogl_330_shader_pipeline_t* pp;
+} mrl_ogl_330_shader_binding_point_t;
+
+struct mrl_ogl_330_shader_pipeline_t
+{
+	GLuint id;
+	mrl_ogl_330_shader_binding_point_t bps[MRL_OGL_330_SHADER_MAX_BINDING_POINT_COUNT];
+};
 
 typedef struct
 {
@@ -144,106 +270,670 @@ typedef struct
 		GLenum index_buffer_format;
 	} state;
 
+	mrl_ogl_330_raster_state_t default_raster_state;
+	mrl_ogl_330_depth_stencil_state_t default_depth_stencil_state;
+	mrl_ogl_330_blend_state_t default_blend_state;
+
 	mrl_render_device_hint_error_callback_t error_callback;
 	mrl_render_device_hint_error_callback_t warning_callback;
 } mrl_ogl_330_render_device_t;
 
-typedef struct
+// ---------- Framebuffers ----------
+
+static mrl_error_t create_framebuffer(mrl_render_device_t* brd, mrl_framebuffer_t** fb, const mrl_framebuffer_desc_t* desc)
 {
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+
+	// Check for input errors
+	if (desc->target_count == 0)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create framebuffer: target count must be at least 1");
+		return MRL_ERROR_INVALID_PARAMS;
+	}
+	else if (desc->target_count > MRL_MAX_FRAMEBUFFER_RENDER_TARGET_COUNT)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create framebuffer: maximum target count surpassed");
+		return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	for (mgl_u32_t i = 0; i < desc->target_count; ++i)
+	{
+		if ((desc->targets[i].type == MRL_RENDER_TARGET_TYPE_TEXTURE_2D && desc->targets[i].tex_2d.handle == NULL) ||
+			(desc->targets[i].type == MRL_RENDER_TARGET_TYPE_CUBE_MAP && desc->targets[i].cube_map.handle == NULL))
+		{
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create framebuffer: defined target cannot be NULL");
+			return MRL_ERROR_INVALID_PARAMS;
+		}
+
+		if (desc->targets[i].type == MRL_RENDER_TARGET_TYPE_CUBE_MAP &&
+			(desc->targets[i].cube_map.face < MRL_CUBE_MAP_FACE_POSITIVE_X || desc->targets[i].cube_map.face > MRL_CUBE_MAP_FACE_NEGATIVE_Z))
+		{
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create framebuffer: invalid cube map target face");
+			return MRL_ERROR_INVALID_PARAMS;
+		}
+
+		if (desc->targets[i].type != MRL_RENDER_TARGET_TYPE_TEXTURE_2D &&
+			desc->targets[i].type != MRL_RENDER_TARGET_TYPE_CUBE_MAP)
+		{
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create framebuffer: invalid target type");
+			return MRL_ERROR_INVALID_PARAMS;
+		}
+	}
+
+	// Initialize framebuffer
 	GLuint id;
-} mrl_ogl_330_framebuffer_t;
+	glGenFramebuffers(1, &id);
+	glBindFramebuffer(GL_FRAMEBUFFER, id);
 
-typedef struct
+	for (mgl_u32_t i = 0; i < desc->target_count; ++i)
+	{
+		if (desc->targets[i].type == MRL_RENDER_TARGET_TYPE_TEXTURE_2D)
+		{
+			mrl_ogl_330_texture_2d_t* tex = (mrl_ogl_330_texture_2d_t*)desc->targets[i].tex_2d.handle;
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, tex->id, 0);
+		}
+		else if (desc->targets[i].type == MRL_RENDER_TARGET_TYPE_CUBE_MAP)
+		{
+			mrl_ogl_330_cube_map_t* cb = (mrl_ogl_330_cube_map_t*)desc->targets[i].cube_map.handle;
+			GLenum face;
+
+			switch (desc->targets[i].cube_map.face)
+			{
+				case MRL_CUBE_MAP_FACE_POSITIVE_X: face = GL_TEXTURE_CUBE_MAP_POSITIVE_X; break;
+				case MRL_CUBE_MAP_FACE_NEGATIVE_X: face = GL_TEXTURE_CUBE_MAP_NEGATIVE_X; break;
+				case MRL_CUBE_MAP_FACE_POSITIVE_Y: face = GL_TEXTURE_CUBE_MAP_POSITIVE_Y; break;
+				case MRL_CUBE_MAP_FACE_NEGATIVE_Y: face = GL_TEXTURE_CUBE_MAP_NEGATIVE_Y; break;
+				case MRL_CUBE_MAP_FACE_POSITIVE_Z: face = GL_TEXTURE_CUBE_MAP_POSITIVE_Z; break;
+				case MRL_CUBE_MAP_FACE_NEGATIVE_Z: face = GL_TEXTURE_CUBE_MAP_NEGATIVE_Z; break;
+			}
+
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, face, cb->id, 0);
+		}
+	}
+
+	if (desc->depth_stencil != NULL)
+	{
+		mrl_ogl_330_texture_2d_t* tex = (mrl_ogl_330_texture_2d_t*)desc->depth_stencil;
+		
+		if (tex->format == GL_DEPTH_COMPONENT)
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, tex->id, 0);
+		else if (tex->format == GL_DEPTH_STENCIL)
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, tex->id, 0);
+		else
+		{
+			glDeleteFramebuffers(1, &id);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create framebuffer: invalid depth/stencil texture format");
+			return MRL_ERROR_INVALID_PARAMS;
+		}
+	}
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		glDeleteFramebuffers(1, &id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
+
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+	{
+		glDeleteFramebuffers(1, &id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, u8"Failed to create framebuffer: glCheckFramebufferStatus didn't return GL_FRAMEBUFFER_COMPLETE");
+		return MRL_ERROR_EXTERNAL;
+	}
+
+	// Allocate object
+	mrl_ogl_330_framebuffer_t* obj;
+	mgl_error_t err = mgl_allocate(
+		&rd->memory.framebuffer.pool,
+		sizeof(*obj),
+		(void**)&obj);
+	if (err != MGL_ERROR_NONE)
+	{
+		glDeleteFramebuffers(1, &id);
+		return mrl_make_mgl_error(err);
+	}
+
+	// Store framebuffer info
+	obj->id = id;
+	*fb = (mrl_framebuffer_t*)obj;
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	return MRL_ERROR_NONE;
+}
+
+static void destroy_framebuffer(mrl_render_device_t* brd, mrl_framebuffer_t* fb)
 {
-	GLuint id;
-} mrl_ogl_330_raster_state_t;
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_framebuffer_t* obj = (mrl_ogl_330_framebuffer_t*)fb;
 
-typedef struct
+	// Delete framebuffer
+	glDeleteFramebuffers(1, &obj->id);
+
+	// Deallocate object
+	mgl_deallocate(
+		&rd->memory.framebuffer.pool,
+		obj);
+}
+
+static void set_framebuffer(mrl_render_device_t* brd, mrl_framebuffer_t* fb)
 {
-	GLuint id;
-} mrl_ogl_330_depth_stencil_state_t;
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_framebuffer_t* obj = (mrl_ogl_330_framebuffer_t*)fb;
 
-typedef struct
+	// Set framebuffer
+	if (obj == NULL)
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	else
+		glBindFramebuffer(GL_FRAMEBUFFER, obj->id);
+}
+
+// ---------- Raster states ----------
+
+static mrl_error_t create_raster_state(mrl_render_device_t* brd, mrl_raster_state_t** rs, const mrl_raster_state_desc_t* desc)
 {
-	GLuint id;
-} mrl_ogl_330_blend_state_t;
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
 
-typedef struct
+	// Allocate object
+	mrl_ogl_330_raster_state_t* obj;
+	mgl_error_t err = mgl_allocate(
+		&rd->memory.raster_state.pool,
+		sizeof(*obj),
+		(void**)&obj);
+	if (err != MGL_ERROR_NONE)
+		return mrl_make_mgl_error(err);
+
+	// Store raster state info
+	obj->cull_enabled = desc->cull_enabled ? GL_TRUE : GL_FALSE;
+
+	if (desc->cull_face == MRL_FACE_FRONT)
+		obj->cull_face = GL_FRONT;
+	else if (desc->cull_face == MRL_FACE_BACK)
+		obj->cull_face = GL_BACK;
+	else if (desc->cull_face == MRL_FACE_FRONT_AND_BACK)
+		obj->cull_face = GL_FRONT_AND_BACK;
+	else
+	{
+		mgl_deallocate(&rd->memory.raster_state.pool, obj);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create raster state: invalid cull face");
+		return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	if (desc->front_face == MRL_WINDING_CW)
+		obj->front_face = GL_CW;
+	else  if (desc->front_face == MRL_WINDING_CCW)
+		obj->front_face = GL_CCW;
+	else
+	{
+		mgl_deallocate(&rd->memory.raster_state.pool, obj);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create raster state: invalid front face winding order");
+		return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	if (desc->raster_mode == MRL_RASTER_MODE_FILL)
+		obj->front_face = GL_FILL;
+	else  if (desc->raster_mode == MRL_RASTER_MODE_WIREFRAME)
+		obj->front_face = GL_LINE;
+	else
+	{
+		mgl_deallocate(&rd->memory.raster_state.pool, obj);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create raster state: invalid rasterizer mode");
+		return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	*rs = (mrl_raster_state_t*)obj;
+
+	return MRL_ERROR_NONE;
+}
+
+static void destroy_raster_state(mrl_render_device_t* brd, mrl_raster_state_t* rs)
 {
-	GLuint id;
-} mrl_ogl_330_sampler_t;
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_raster_state_t* obj = (mrl_ogl_330_raster_state_t*)rs;
 
-typedef struct
+	// Deallocate object
+	mgl_deallocate(
+		&rd->memory.raster_state.pool,
+		obj);
+}
+
+static void set_raster_state(mrl_render_device_t* brd, mrl_raster_state_t* rs)
 {
-	GLenum internal_format, format, type;
-	mgl_u64_t width;
-	GLuint id;
-} mrl_ogl_330_texture_1d_t;
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_raster_state_t* obj = (mrl_ogl_330_raster_state_t*)rs;
 
-typedef struct
+	if (obj == NULL)
+		obj = &rd->default_raster_state;
+
+	// Set raster state
+	if (obj->cull_enabled)
+	{
+		glEnable(GL_CULL_FACE);
+
+		glCullFace(obj->cull_face);
+		glFrontFace(obj->front_face);
+	}
+	else 
+		glDisable(GL_CULL_FACE);
+
+	glPolygonMode(GL_FRONT_AND_BACK, obj->polygon_mode);
+}
+
+// ---------- Depth stencil states ----------
+
+#undef near
+#undef far
+
+static mrl_error_t create_depth_stencil_state(mrl_render_device_t* brd, mrl_depth_stencil_state_t** dss, const mrl_depth_stencil_state_desc_t* desc)
 {
-	GLenum internal_format, format, type;
-	mgl_u64_t width, height;
-	GLuint id;
-} mrl_ogl_330_texture_2d_t;
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
 
-typedef struct
+	// Allocate object
+	mrl_ogl_330_depth_stencil_state_t* obj;
+	mgl_error_t err = mgl_allocate(
+		&rd->memory.depth_stencil_state.pool,
+		sizeof(*obj),
+		(void**)&obj);
+	if (err != MGL_ERROR_NONE)
+		return mrl_make_mgl_error(err);
+
+	// Store depth state info
+	obj->depth_enabled = desc->depth.enabled ? GL_TRUE : GL_FALSE;
+	obj->depth_write_enabled = desc->depth.write_enabled ? GL_TRUE : GL_FALSE;
+	obj->depth_near = (GLfloat)desc->depth.near;
+	obj->depth_far = (GLfloat)desc->depth.far;
+
+	switch (desc->depth.compare)
+	{
+		case MRL_COMPARE_NEVER: obj->depth_func = GL_NEVER; break;
+		case MRL_COMPARE_LESS: obj->depth_func = GL_LESS; break;
+		case MRL_COMPARE_LEQUAL: obj->depth_func = GL_LEQUAL; break;
+		case MRL_COMPARE_GREATER: obj->depth_func = GL_GREATER; break;
+		case MRL_COMPARE_GEQUAL: obj->depth_func = GL_GEQUAL; break;
+		case MRL_COMPARE_EQUAL: obj->depth_func = GL_EQUAL; break;
+		case MRL_COMPARE_NEQUAL: obj->depth_func = GL_NOTEQUAL; break;
+		case MRL_COMPARE_ALWAYS: obj->depth_func = GL_ALWAYS; break;
+		default:
+			mgl_deallocate(&rd->memory.depth_stencil_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create depth stencil state: invalid depth compare function");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	// Store stencil state info
+	obj->stencil_enabled = desc->stencil.enabled ? GL_TRUE : GL_FALSE;
+	obj->stencil_ref = (GLuint)desc->stencil.ref;
+	obj->stencil_read_mask = (GLuint)desc->stencil.read_mask;
+	obj->stencil_write_mask = (GLuint)desc->stencil.write_mask;
+
+	switch (desc->stencil.front_face.compare)
+	{
+		case MRL_COMPARE_NEVER: obj->front_stencil_func = GL_NEVER; break;
+		case MRL_COMPARE_LESS: obj->front_stencil_func = GL_LESS; break;
+		case MRL_COMPARE_LEQUAL: obj->front_stencil_func = GL_LEQUAL; break;
+		case MRL_COMPARE_GREATER: obj->front_stencil_func = GL_GREATER; break;
+		case MRL_COMPARE_GEQUAL: obj->front_stencil_func = GL_GEQUAL; break;
+		case MRL_COMPARE_EQUAL: obj->front_stencil_func = GL_EQUAL; break;
+		case MRL_COMPARE_NEQUAL: obj->front_stencil_func = GL_NOTEQUAL; break;
+		case MRL_COMPARE_ALWAYS: obj->front_stencil_func = GL_ALWAYS; break;
+		default:
+			mgl_deallocate(&rd->memory.depth_stencil_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create depth stencil state: invalid front face stencil compare function");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->stencil.front_face.fail)
+	{
+		case MRL_ACTION_KEEP: obj->front_face_stencil_fail = GL_KEEP; break;
+		case MRL_ACTION_ZERO: obj->front_face_stencil_fail = GL_ZERO; break;
+		case MRL_ACTION_REPLACE: obj->front_face_stencil_fail = GL_REPLACE; break;
+		case MRL_ACTION_INCREMENT: obj->front_face_stencil_fail = GL_INCR; break;
+		case MRL_ACTION_INCREMENT_WRAP: obj->front_face_stencil_fail = GL_INCR_WRAP; break;
+		case MRL_ACTION_DECREMENT: obj->front_face_stencil_fail = GL_DECR; break;
+		case MRL_ACTION_DECREMENT_WRAP: obj->front_face_stencil_fail = GL_DECR_WRAP; break;
+		case MRL_ACTION_INVERT: obj->front_face_stencil_fail = GL_INVERT; break;
+		default:
+			mgl_deallocate(&rd->memory.depth_stencil_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create depth stencil state: invalid front face stencil fail action");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->stencil.front_face.pass)
+	{
+		case MRL_ACTION_KEEP: obj->front_face_stencil_pass = GL_KEEP; break;
+		case MRL_ACTION_ZERO: obj->front_face_stencil_pass = GL_ZERO; break;
+		case MRL_ACTION_REPLACE: obj->front_face_stencil_pass = GL_REPLACE; break;
+		case MRL_ACTION_INCREMENT: obj->front_face_stencil_pass = GL_INCR; break;
+		case MRL_ACTION_INCREMENT_WRAP: obj->front_face_stencil_pass = GL_INCR_WRAP; break;
+		case MRL_ACTION_DECREMENT: obj->front_face_stencil_pass = GL_DECR; break;
+		case MRL_ACTION_DECREMENT_WRAP: obj->front_face_stencil_pass = GL_DECR_WRAP; break;
+		case MRL_ACTION_INVERT: obj->front_face_stencil_pass = GL_INVERT; break;
+		default:
+			mgl_deallocate(&rd->memory.depth_stencil_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create depth stencil state: invalid front face stencil pass action");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->stencil.front_face.depth_fail)
+	{
+		case MRL_ACTION_KEEP: obj->front_face_depth_fail = GL_KEEP; break;
+		case MRL_ACTION_ZERO: obj->front_face_depth_fail = GL_ZERO; break;
+		case MRL_ACTION_REPLACE: obj->front_face_depth_fail = GL_REPLACE; break;
+		case MRL_ACTION_INCREMENT: obj->front_face_depth_fail = GL_INCR; break;
+		case MRL_ACTION_INCREMENT_WRAP: obj->front_face_depth_fail = GL_INCR_WRAP; break;
+		case MRL_ACTION_DECREMENT: obj->front_face_depth_fail = GL_DECR; break;
+		case MRL_ACTION_DECREMENT_WRAP: obj->front_face_depth_fail = GL_DECR_WRAP; break;
+		case MRL_ACTION_INVERT: obj->front_face_depth_fail = GL_INVERT; break;
+		default:
+			mgl_deallocate(&rd->memory.depth_stencil_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create depth stencil state: invalid front face depth fail action");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->stencil.back_face.compare)
+	{
+		case MRL_COMPARE_NEVER: obj->back_stencil_func = GL_NEVER; break;
+		case MRL_COMPARE_LESS: obj->back_stencil_func = GL_LESS; break;
+		case MRL_COMPARE_LEQUAL: obj->back_stencil_func = GL_LEQUAL; break;
+		case MRL_COMPARE_GREATER: obj->back_stencil_func = GL_GREATER; break;
+		case MRL_COMPARE_GEQUAL: obj->back_stencil_func = GL_GEQUAL; break;
+		case MRL_COMPARE_EQUAL: obj->back_stencil_func = GL_EQUAL; break;
+		case MRL_COMPARE_NEQUAL: obj->back_stencil_func = GL_NOTEQUAL; break;
+		case MRL_COMPARE_ALWAYS: obj->back_stencil_func = GL_ALWAYS; break;
+		default:
+			mgl_deallocate(&rd->memory.depth_stencil_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create depth stencil state: invalid back face stencil compare function");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->stencil.back_face.fail)
+	{
+		case MRL_ACTION_KEEP: obj->back_face_stencil_fail = GL_KEEP; break;
+		case MRL_ACTION_ZERO: obj->back_face_stencil_fail = GL_ZERO; break;
+		case MRL_ACTION_REPLACE: obj->back_face_stencil_fail = GL_REPLACE; break;
+		case MRL_ACTION_INCREMENT: obj->back_face_stencil_fail = GL_INCR; break;
+		case MRL_ACTION_INCREMENT_WRAP: obj->back_face_stencil_fail = GL_INCR_WRAP; break;
+		case MRL_ACTION_DECREMENT: obj->back_face_stencil_fail = GL_DECR; break;
+		case MRL_ACTION_DECREMENT_WRAP: obj->back_face_stencil_fail = GL_DECR_WRAP; break;
+		case MRL_ACTION_INVERT: obj->back_face_stencil_fail = GL_INVERT; break;
+		default:
+			mgl_deallocate(&rd->memory.depth_stencil_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create depth stencil state: invalid back face stencil fail action");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->stencil.back_face.pass)
+	{
+		case MRL_ACTION_KEEP: obj->back_face_stencil_pass = GL_KEEP; break;
+		case MRL_ACTION_ZERO: obj->back_face_stencil_pass = GL_ZERO; break;
+		case MRL_ACTION_REPLACE: obj->back_face_stencil_pass = GL_REPLACE; break;
+		case MRL_ACTION_INCREMENT: obj->back_face_stencil_pass = GL_INCR; break;
+		case MRL_ACTION_INCREMENT_WRAP: obj->back_face_stencil_pass = GL_INCR_WRAP; break;
+		case MRL_ACTION_DECREMENT: obj->back_face_stencil_pass = GL_DECR; break;
+		case MRL_ACTION_DECREMENT_WRAP: obj->back_face_stencil_pass = GL_DECR_WRAP; break;
+		case MRL_ACTION_INVERT: obj->back_face_stencil_pass = GL_INVERT; break;
+		default:
+			mgl_deallocate(&rd->memory.depth_stencil_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create depth stencil state: invalid back face stencil pass action");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->stencil.back_face.depth_fail)
+	{
+		case MRL_ACTION_KEEP: obj->back_face_depth_fail = GL_KEEP; break;
+		case MRL_ACTION_ZERO: obj->back_face_depth_fail = GL_ZERO; break;
+		case MRL_ACTION_REPLACE: obj->back_face_depth_fail = GL_REPLACE; break;
+		case MRL_ACTION_INCREMENT: obj->back_face_depth_fail = GL_INCR; break;
+		case MRL_ACTION_INCREMENT_WRAP: obj->back_face_depth_fail = GL_INCR_WRAP; break;
+		case MRL_ACTION_DECREMENT: obj->back_face_depth_fail = GL_DECR; break;
+		case MRL_ACTION_DECREMENT_WRAP: obj->back_face_depth_fail = GL_DECR_WRAP; break;
+		case MRL_ACTION_INVERT: obj->back_face_depth_fail = GL_INVERT; break;
+		default:
+			mgl_deallocate(&rd->memory.depth_stencil_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create depth stencil state: invalid back face depth fail action");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	*dss = (mrl_depth_stencil_state_t*)obj;
+
+	return MRL_ERROR_NONE;
+}
+
+static void destroy_depth_stencil_state(mrl_render_device_t* brd, mrl_depth_stencil_state_t* dss)
 {
-	GLenum internal_format, format, type;
-	mgl_u64_t width, height, depth;
-	GLuint id;
-} mrl_ogl_330_texture_3d_t;
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_depth_stencil_state_t* obj = (mrl_ogl_330_depth_stencil_state_t*)dss;
 
-typedef struct
+	// Deallocate object
+	mgl_deallocate(
+		&rd->memory.depth_stencil_state.pool,
+		obj);
+}
+
+static void set_depth_stencil_state(mrl_render_device_t* brd, mrl_depth_stencil_state_t* dss)
 {
-	GLenum internal_format, format, type;
-	mgl_u64_t width, height;
-	GLuint id;
-} mrl_ogl_330_cube_map_t;
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_depth_stencil_state_t* obj = (mrl_ogl_330_depth_stencil_state_t*)dss;
 
-typedef struct
+	// Set depth state
+
+	if (obj == NULL)
+		obj = &rd->default_depth_stencil_state;
+
+	if (obj->depth_enabled)
+	{
+		glEnable(GL_DEPTH_TEST);
+
+		glDepthFunc(obj->depth_func);
+		glDepthMask(obj->depth_write_enabled ? GL_TRUE : GL_FALSE);
+		glDepthRange(obj->depth_near, obj->depth_far);
+	}
+	else
+		glDisable(GL_DEPTH_TEST);
+
+	// Set stencil state
+
+	if (obj->stencil_enabled)
+	{
+		glEnable(GL_STENCIL_TEST);
+
+		glStencilFuncSeparate(GL_FRONT, obj->front_stencil_func, obj->stencil_ref, obj->stencil_read_mask);
+		glStencilMaskSeparate(GL_FRONT, obj->stencil_write_mask);
+		glStencilOpSeparate(GL_FRONT, obj->front_face_stencil_fail, obj->front_face_depth_fail, obj->front_face_stencil_pass);
+
+		glStencilFuncSeparate(GL_BACK, obj->back_stencil_func, obj->stencil_ref, obj->stencil_read_mask);
+		glStencilMaskSeparate(GL_BACK, obj->stencil_write_mask);
+		glStencilOpSeparate(GL_BACK, obj->back_face_stencil_fail, obj->back_face_depth_fail, obj->back_face_stencil_pass);
+	}
+	else
+		glDisable(GL_STENCIL_TEST);
+}
+
+// ---------- Blend states ----------
+
+static mrl_error_t create_blend_state(mrl_render_device_t* brd, mrl_blend_state_t** bs, const mrl_blend_state_desc_t* desc)
 {
-	GLuint id;
-} mrl_ogl_330_constant_buffer_t;
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
 
-typedef struct
+	// Allocate object
+	mrl_ogl_330_blend_state_t* obj;
+	mgl_error_t err = mgl_allocate(
+		&rd->memory.blend_state.pool,
+		sizeof(*obj),
+		(void**)&obj);
+	if (err != MGL_ERROR_NONE)
+		return mrl_make_mgl_error(err);
+
+	// Store blend state info
+	obj->blend_enabled = desc->blend_enabled ? GL_TRUE : GL_FALSE;
+
+	switch (desc->alpha.src)
+	{
+		case MRL_BLEND_FACTOR_ZERO: obj->src_alpha_factor = GL_ZERO; break;
+		case MRL_BLEND_FACTOR_ONE: obj->src_alpha_factor = GL_ONE; break;
+		case MRL_BLEND_FACTOR_SRC_COLOR: obj->src_alpha_factor = GL_ONE_MINUS_SRC_COLOR; break; 
+		case MRL_BLEND_FACTOR_INV_SRC_COLOR: obj->src_alpha_factor = GL_ONE_MINUS_SRC_COLOR; break;
+		case MRL_BLEND_FACTOR_DST_COLOR: obj->src_alpha_factor = GL_DST_COLOR; break;
+		case MRL_BLEND_FACTOR_INV_DST_COLOR: obj->src_alpha_factor = GL_ONE_MINUS_DST_COLOR; break;
+		case MRL_BLEND_FACTOR_SRC_ALPHA: obj->src_alpha_factor = GL_SRC_ALPHA; break;
+		case MRL_BLEND_FACTOR_INV_SRC_ALPHA: obj->src_alpha_factor = GL_ONE_MINUS_SRC_ALPHA; break;
+		case MRL_BLEND_FACTOR_DST_ALPHA: obj->src_alpha_factor = GL_DST_ALPHA; break;
+		case MRL_BLEND_FACTOR_INV_DST_ALPHA: obj->src_alpha_factor = GL_ONE_MINUS_DST_ALPHA; break;
+		default:
+			mgl_deallocate(&rd->memory.blend_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create blend state: invalid alpha source factor");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->alpha.dst)
+	{
+		case MRL_BLEND_FACTOR_ZERO: obj->dst_alpha_factor = GL_ZERO; break;
+		case MRL_BLEND_FACTOR_ONE: obj->dst_alpha_factor = GL_ONE; break;
+		case MRL_BLEND_FACTOR_SRC_COLOR: obj->dst_alpha_factor = GL_ONE_MINUS_SRC_COLOR; break;
+		case MRL_BLEND_FACTOR_INV_SRC_COLOR: obj->dst_alpha_factor = GL_ONE_MINUS_SRC_COLOR; break;
+		case MRL_BLEND_FACTOR_DST_COLOR: obj->dst_alpha_factor = GL_DST_COLOR; break;
+		case MRL_BLEND_FACTOR_INV_DST_COLOR: obj->dst_alpha_factor = GL_ONE_MINUS_DST_COLOR; break;
+		case MRL_BLEND_FACTOR_SRC_ALPHA: obj->dst_alpha_factor = GL_SRC_ALPHA; break;
+		case MRL_BLEND_FACTOR_INV_SRC_ALPHA: obj->dst_alpha_factor = GL_ONE_MINUS_SRC_ALPHA; break;
+		case MRL_BLEND_FACTOR_DST_ALPHA: obj->dst_alpha_factor = GL_DST_ALPHA; break;
+		case MRL_BLEND_FACTOR_INV_DST_ALPHA: obj->dst_alpha_factor = GL_ONE_MINUS_DST_ALPHA; break;
+		default:
+			mgl_deallocate(&rd->memory.blend_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create blend state: invalid alpha destination factor");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->alpha.op)
+	{
+		case MRL_BLEND_OP_ADD: obj->alpha_blend_op = GL_FUNC_ADD; break;
+		case MRL_BLEND_OP_SUBTRACT: obj->alpha_blend_op = GL_FUNC_SUBTRACT; break;
+		case MRL_BLEND_OP_REV_SUBTRACT: obj->alpha_blend_op = GL_FUNC_REVERSE_SUBTRACT; break;
+		case MRL_BLEND_OP_MAX: obj->alpha_blend_op = GL_MAX; break;
+		case MRL_BLEND_OP_MIN: obj->alpha_blend_op = GL_MIN; break;
+		default:
+			mgl_deallocate(&rd->memory.blend_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create blend state: invalid alpha blend operation");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->color.src)
+	{
+		case MRL_BLEND_FACTOR_ZERO: obj->src_factor = GL_ZERO; break;
+		case MRL_BLEND_FACTOR_ONE: obj->src_factor = GL_ONE; break;
+		case MRL_BLEND_FACTOR_SRC_COLOR: obj->src_factor = GL_ONE_MINUS_SRC_COLOR; break;
+		case MRL_BLEND_FACTOR_INV_SRC_COLOR: obj->src_factor = GL_ONE_MINUS_SRC_COLOR; break;
+		case MRL_BLEND_FACTOR_DST_COLOR: obj->src_factor = GL_DST_COLOR; break;
+		case MRL_BLEND_FACTOR_INV_DST_COLOR: obj->src_factor = GL_ONE_MINUS_DST_COLOR; break;
+		case MRL_BLEND_FACTOR_SRC_ALPHA: obj->src_factor = GL_SRC_ALPHA; break;
+		case MRL_BLEND_FACTOR_INV_SRC_ALPHA: obj->src_factor = GL_ONE_MINUS_SRC_ALPHA; break;
+		case MRL_BLEND_FACTOR_DST_ALPHA: obj->src_factor = GL_DST_ALPHA; break;
+		case MRL_BLEND_FACTOR_INV_DST_ALPHA: obj->src_factor = GL_ONE_MINUS_DST_ALPHA; break;
+		default:
+			mgl_deallocate(&rd->memory.blend_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create blend state: invalid color source factor");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->color.dst)
+	{
+		case MRL_BLEND_FACTOR_ZERO: obj->dst_factor = GL_ZERO; break;
+		case MRL_BLEND_FACTOR_ONE: obj->dst_factor = GL_ONE; break;
+		case MRL_BLEND_FACTOR_SRC_COLOR: obj->dst_factor = GL_ONE_MINUS_SRC_COLOR; break;
+		case MRL_BLEND_FACTOR_INV_SRC_COLOR: obj->dst_factor = GL_ONE_MINUS_SRC_COLOR; break;
+		case MRL_BLEND_FACTOR_DST_COLOR: obj->dst_factor = GL_DST_COLOR; break;
+		case MRL_BLEND_FACTOR_INV_DST_COLOR: obj->dst_factor = GL_ONE_MINUS_DST_COLOR; break;
+		case MRL_BLEND_FACTOR_SRC_ALPHA: obj->dst_factor = GL_SRC_ALPHA; break;
+		case MRL_BLEND_FACTOR_INV_SRC_ALPHA: obj->dst_factor = GL_ONE_MINUS_SRC_ALPHA; break;
+		case MRL_BLEND_FACTOR_DST_ALPHA: obj->dst_factor = GL_DST_ALPHA; break;
+		case MRL_BLEND_FACTOR_INV_DST_ALPHA: obj->dst_factor = GL_ONE_MINUS_DST_ALPHA; break;
+		default:
+			mgl_deallocate(&rd->memory.blend_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create blend state: invalid color destination factor");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	switch (desc->color.op)
+	{
+		case MRL_BLEND_OP_ADD: obj->blend_op = GL_FUNC_ADD; break;
+		case MRL_BLEND_OP_SUBTRACT: obj->blend_op = GL_FUNC_SUBTRACT; break;
+		case MRL_BLEND_OP_REV_SUBTRACT: obj->blend_op = GL_FUNC_REVERSE_SUBTRACT; break;
+		case MRL_BLEND_OP_MAX: obj->blend_op = GL_MAX; break;
+		case MRL_BLEND_OP_MIN: obj->blend_op = GL_MIN; break;
+		default:
+			mgl_deallocate(&rd->memory.blend_state.pool, obj);
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create blend state: invalid color blend operation");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	*bs = (mrl_blend_state_t*)obj;
+
+	return MRL_ERROR_NONE;
+}
+
+static void destroy_blend_state(mrl_render_device_t* brd, mrl_blend_state_t* bs)
 {
-	GLuint id;
-	GLenum format;
-} mrl_ogl_330_index_buffer_t;
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_blend_state_t* obj = (mrl_ogl_330_blend_state_t*)bs;
 
-typedef struct
+	// Deallocate object
+	mgl_deallocate(
+		&rd->memory.blend_state.pool,
+		obj);
+}
+
+static void set_blend_state(mrl_render_device_t* brd, mrl_blend_state_t* bs)
 {
-	GLuint id;
-} mrl_ogl_330_vertex_buffer_t;
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_blend_state_t* obj = (mrl_ogl_330_blend_state_t*)bs;
 
-typedef struct
-{
-	GLuint id;
-} mrl_ogl_330_vertex_array_t;
+	if (obj == NULL)
+		obj = &rd->default_blend_state;
 
-typedef struct
-{
-	GLuint id;
-} mrl_ogl_330_shader_stage_t;
+	// Set blend state
+	if (!obj->blend_enabled)
+		glDisable(GL_BLEND);
+	else
+	{
+		glEnable(GL_BLEND);
 
-#define MRL_OGL_330_SHADER_BINDING_POINT_MAX_NAME_SIZE 32
-#define MRL_OGL_330_SHADER_MAX_BINDING_POINT_COUNT 32
+		glBlendFuncSeparate(
+			obj->src_factor,
+			obj->dst_factor,
+			obj->src_alpha_factor,
+			obj->dst_alpha_factor);
 
-typedef struct mrl_ogl_330_shader_pipeline_t mrl_ogl_330_shader_pipeline_t;
-
-typedef struct
-{
-	mgl_chr8_t name[MRL_OGL_330_SHADER_BINDING_POINT_MAX_NAME_SIZE];
-	GLint loc;
-	mrl_ogl_330_shader_pipeline_t* pp;
-} mrl_ogl_330_shader_binding_point_t;
-
-struct mrl_ogl_330_shader_pipeline_t
-{
-	GLuint id;
-	mrl_ogl_330_shader_binding_point_t bps[MRL_OGL_330_SHADER_MAX_BINDING_POINT_COUNT];
-};
+		glBlendEquationSeparate(
+			obj->blend_op,
+			obj->alpha_blend_op);
+	}
+}
 
 // ---------- Samplers ----------
 
@@ -625,8 +1315,8 @@ static mrl_error_t create_texture_2d(mrl_render_device_t* brd, mrl_texture_2d_t*
 
 		case MRL_TEXTURE_FORMAT_D16: internal_format = GL_DEPTH; format = GL_DEPTH_COMPONENT; type = GL_FLOAT; break;
 		case MRL_TEXTURE_FORMAT_D32: internal_format = GL_DEPTH; format = GL_DEPTH_COMPONENT; type = GL_FLOAT; break;
-		case MRL_TEXTURE_FORMAT_D24S8: internal_format = GL_R32UI; format = GL_DEPTH_STENCIL; type = GL_FLOAT; break;
-		case MRL_TEXTURE_FORMAT_D32S8: internal_format = GL_R32UI; format = GL_DEPTH_STENCIL; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_D24S8: internal_format = GL_DEPTH24_STENCIL8; format = GL_DEPTH_STENCIL; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_D32S8: internal_format = GL_DEPTH32F_STENCIL8; format = GL_DEPTH_STENCIL; type = GL_FLOAT; break;
 
 		default:
 			if (rd->error_callback != NULL)
@@ -1266,7 +1956,13 @@ static void query_constant_buffer_structure(mrl_render_device_t* brd, mrl_shader
 			if (element_name[name_offset] == '.')
 				break;
 		name_offset += 1;
-		mgl_str_copy(element_name + name_offset, cbs->elements[i].name, MRL_MAX_CONSTANT_BUFFER_ELEMENT_NAME_SIZE);
+
+		mgl_u64_t name_max_size;
+		for (name_max_size = 0; name_max_size < MRL_MAX_CONSTANT_BUFFER_ELEMENT_NAME_SIZE; ++name_max_size)
+			if (element_name[name_offset + name_max_size] == '[')
+				break;
+		name_max_size += 1;
+		mgl_str_copy(element_name + name_offset, cbs->elements[i].name, name_max_size);
 
 		// Get array stride, buffer offset and array size
 		GLint stride, offset, size;
@@ -1945,9 +2641,63 @@ static void draw_triangles_indexed(mrl_render_device_t* brd, mgl_u64_t offset, m
 	glDrawElements(GL_TRIANGLES, (GLsizei)count, rd->state.index_buffer_format, (const void*)offset);
 }
 
-static const mgl_chr8_t* get_type_name(mrl_render_device_t* rd)
+static void draw_triangles_instanced(mrl_render_device_t* brd, mgl_u64_t offset, mgl_u64_t count, mgl_u64_t instance_count)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	glDrawArraysInstanced(GL_TRIANGLES, (GLint)offset, (GLsizei)count, (GLsizei)instance_count);
+}
+
+static void draw_triangles_indexed_instanced(mrl_render_device_t* brd, mgl_u64_t offset, mgl_u64_t count, mgl_u64_t instance_count)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	glDrawElementsInstanced(GL_TRIANGLES, (GLsizei)count, rd->state.index_buffer_format, (const void*)offset, (GLsizei)instance_count);
+}
+
+static void set_viewport(mrl_render_device_t* brd, mgl_i32_t x, mgl_i32_t y, mgl_i32_t w, mgl_i32_t h)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	glViewport((GLint)x, (GLint)y, (GLint)w, (GLint)h);
+}
+
+static const mgl_chr8_t* get_type_name(mrl_render_device_t* brd)
 {
 	return u8"ogl_330";
+}
+
+static mgl_i64_t get_property_i(mrl_render_device_t* brd, mgl_enum_t name)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+
+	if (name == MRL_PROPERTY_MAX_ANISTROPY)
+	{
+		if (GL_ARB_texture_filter_anisotropic)
+		{
+			GLfloat v = 1.0f;
+			glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &v);
+			return (mgl_i64_t)v;
+		}
+		else return 1;
+	}
+
+	return -1;
+}
+
+static mgl_f64_t get_property_f(mrl_render_device_t* brd, mgl_enum_t name)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+
+	if (name == MRL_PROPERTY_MAX_ANISTROPY)
+	{
+		if (GL_ARB_texture_filter_anisotropic)
+		{
+			GLfloat v = 1.0f;
+			glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &v);
+			return (mgl_f64_t)v;
+		}
+		else return 1.0;
+	}
+
+	return MGL_F64_NAN;
 }
 
 static mrl_error_t create_rd_allocators(mrl_ogl_330_render_device_t* rd, const mrl_render_device_desc_t* desc)
@@ -2219,6 +2969,26 @@ static void destroy_rd_allocators(mrl_ogl_330_render_device_t* rd)
 
 static void set_rd_functions(mrl_ogl_330_render_device_t* rd)
 {
+	// Framebuffer functions
+	rd->base.create_framebuffer = &create_framebuffer;
+	rd->base.destroy_framebuffer = &destroy_framebuffer;
+	rd->base.set_framebuffer = &set_framebuffer;
+
+	// Raster state functions
+	rd->base.create_raster_state = &create_raster_state;
+	rd->base.destroy_raster_state = &destroy_raster_state;
+	rd->base.set_raster_state = &set_raster_state;
+
+	// Depth stencil state functions
+	rd->base.create_depth_stencil_state = &create_depth_stencil_state;
+	rd->base.destroy_depth_stencil_state = &destroy_depth_stencil_state;
+	rd->base.set_depth_stencil_state = &set_depth_stencil_state;
+
+	// Blend state functions
+	rd->base.create_blend_state = &create_blend_state;
+	rd->base.destroy_blend_state = &destroy_blend_state;
+	rd->base.set_blend_state = &set_blend_state;
+
 	// Sampler functions
 	rd->base.create_sampler = &create_sampler;
 	rd->base.destroy_sampler = &destroy_sampler;
@@ -2295,6 +3065,14 @@ static void set_rd_functions(mrl_ogl_330_render_device_t* rd)
 	rd->base.clear_stencil = &clear_stencil;
 	rd->base.draw_triangles = &draw_triangles;
 	rd->base.draw_triangles_indexed = &draw_triangles_indexed;
+	rd->base.draw_triangles_instanced = &draw_triangles_instanced;
+	rd->base.draw_triangles_indexed_instanced = &draw_triangles_indexed_instanced;
+	rd->base.set_viewport = &set_viewport;
+
+	// Getter functions
+	rd->base.get_type_name = &get_type_name;
+	rd->base.get_property_i = &get_property_i;
+	rd->base.get_property_f = &get_property_f;
 
 	// Swap buffers
 	if (mgl_str_equal(u8"win32", mgl_get_window_type(rd->window)))
@@ -2306,8 +3084,6 @@ static void set_rd_functions(mrl_ogl_330_render_device_t* rd)
 #	endif
 	}
 	else mgl_abort();
-
-	rd->base.get_type_name = &get_type_name;
 }
 
 static void extract_hints(mrl_ogl_330_render_device_t* rd, const mrl_render_device_desc_t* desc)
@@ -2321,12 +3097,12 @@ static void extract_hints(mrl_ogl_330_render_device_t* rd, const mrl_render_devi
 		// Extract hint info
 		switch (hint->type)
 		{
-			case MRL_HINT_WARNING_CALLBACK:
+			case MRL_HINT_RENDER_DEVICE_WARNING_CALLBACK:
 				MGL_DEBUG_ASSERT(hint->data != NULL);
 				rd->warning_callback = *(const mrl_render_device_hint_warning_callback_t*)hint->data;
 				break;
 
-			case MRL_HINT_ERROR_CALLBACK:
+			case MRL_HINT_RENDER_DEVICE_ERROR_CALLBACK:
 				MGL_DEBUG_ASSERT(hint->data != NULL);
 				rd->error_callback = *(const mrl_render_device_hint_error_callback_t*)hint->data;
 				break;
@@ -2464,6 +3240,18 @@ MRL_API mrl_error_t mrl_init_ogl_330_render_device(const mrl_render_device_desc_
 
 	// Set render device funcs
 	set_rd_functions(rd);
+
+	// Set default states
+	rd->default_raster_state.cull_enabled = MGL_FALSE;
+	rd->default_raster_state.cull_face = GL_BACK;
+	rd->default_raster_state.front_face = GL_CCW;
+	rd->default_raster_state.polygon_mode = GL_FILL;
+	rd->default_depth_stencil_state.depth_enabled = MGL_FALSE;
+	rd->default_depth_stencil_state.stencil_enabled = MGL_FALSE;
+	rd->default_blend_state.blend_enabled = MGL_FALSE;	
+	mrl_set_raster_state((mrl_render_device_t*)rd, &rd->default_raster_state);
+	mrl_set_depth_stencil_state((mrl_render_device_t*)rd, &rd->default_depth_stencil_state);
+	mrl_set_blend_state((mrl_render_device_t*)rd, &rd->default_blend_state);
 
 	*out_rd = (mrl_render_device_t*)rd;
 

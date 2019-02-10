@@ -18,11 +18,21 @@ struct
 		mrl_shader_stage_t* vertex;
 		mrl_shader_stage_t* pixel;
 		mrl_shader_pipeline_t* pipeline;
+
 		mrl_shader_binding_point_t* bp;
 	} shader;
+	
+	struct
+	{
+		mgl_u64_t pos_offsets[2];
+		mgl_u64_t color_offsets[2];
+	} cb_struct;
 
-	mrl_sampler_t* sampler;
-	mrl_texture_2d_t* tex;
+	mrl_raster_state_t* rs;
+	mrl_depth_stencil_state_t* dss;
+	mrl_blend_state_t* bs;
+
+	mrl_constant_buffer_t* cbo;
 	mrl_index_buffer_t* ibo;
 	mrl_vertex_buffer_t* vbo;
 	mrl_vertex_array_t* vao;
@@ -31,7 +41,7 @@ struct
 typedef struct
 {
 	mgl_f32_t x, y;
-	mgl_f32_t u, v;
+	mgl_f32_t r, g, b, a;
 } my_vertex_t;
 
 void handle_error(mrl_error_t error, const mgl_chr8_t* msg);
@@ -67,17 +77,19 @@ void load(void)
 		mrl_shader_stage_desc_t desc = MRL_DEFAULT_SHADER_STAGE_DESC;
 		desc.stage = MRL_SHADER_STAGE_VERTEX;
 		desc.src_type = MRL_SHADER_SOURCE_GLSL;
-		desc.src =
+		desc.src = 
 			"#version 330 core\n"
-
+			
 			"in vec2 position;"
-			"in vec2 uvs;"
+			"in vec4 color;"
 
-			"out vec2 frag_uvs;"
+			"out vec4 frag_color;"
+
+			"uniform data_cb { vec4 color[2]; vec2 position[2]; } data;"
 
 			"void main() {"
-			"	frag_uvs = uvs;"
-			"	gl_Position = vec4(position, 0.0, 1.0);"
+			"	frag_color = color * data.color[gl_InstanceID];"
+			"	gl_Position = vec4(position + data.position[gl_InstanceID], 0.0, 1.0);"
 			"}";
 
 		handle_error(mrl_create_shader_stage(app.rd, &app.shader.vertex, &desc), u8"Failed to create vertex shader stage");
@@ -90,11 +102,13 @@ void load(void)
 		desc.src_type = MRL_SHADER_SOURCE_GLSL;
 		desc.src =
 			"#version 330 core\n"
-			"in vec2 frag_uvs;"
+
+			"in vec4 frag_color;"
+
 			"out vec4 color;"
-			"uniform sampler2D tex;"
+
 			"void main() {"
-			"	color = texture(tex, frag_uvs);"
+			"	color = frag_color;"
 			"}";
 
 		handle_error(mrl_create_shader_stage(app.rd, &app.shader.pixel, &desc), u8"Failed to create pixel shader stage");
@@ -109,41 +123,36 @@ void load(void)
 		handle_error(mrl_create_shader_pipeline(app.rd, &app.shader.pipeline, &desc), u8"Failed to create shader pipeline");
 	}
 
-	// Get BP
-	app.shader.bp = mrl_get_shader_binding_point(app.rd, app.shader.pipeline, u8"tex");
+	// Get CB BP
+	app.shader.bp = mrl_get_shader_binding_point(app.rd, app.shader.pipeline, u8"data_cb");
 
-	// Create sampler
+	// Init CBO
 	{
-		mrl_sampler_desc_t desc = MRL_DEFAULT_SAMPLER_DESC;
+		mrl_constant_buffer_structure_t cbs;
+		mrl_query_constant_buffer_structure(app.rd, app.shader.bp, &cbs);
 
-		desc.min_filter = MRL_SAMPLER_FILTER_LINEAR;
-		desc.mag_filter = MRL_SAMPLER_FILTER_LINEAR;
-
-		desc.address_u = MRL_SAMPLER_ADDRESS_MIRROR;
-		desc.address_v = MRL_SAMPLER_ADDRESS_MIRROR;
-
-		handle_error(mrl_create_sampler(app.rd, &app.sampler, &desc), u8"Failed to create sampler");
-	}
-
-	// Create texture
-	{
-		mrl_texture_2d_desc_t desc = MRL_DEFAULT_TEXTURE_2D_DESC;
-
-		mgl_u8_t data[] =
+		for (mgl_u32_t i = 0; i < cbs.element_count; ++i)
 		{
-			255, 0, 0, 255,
-			0, 255, 0, 255,
-			0, 0, 255, 255,
-			255, 0, 255, 255,
-		};
+			if (mgl_str_equal(u8"position", cbs.elements[i].name))
+			{
+				MGL_DEBUG_ASSERT(cbs.elements[i].size == 2);
+				app.cb_struct.pos_offsets[0] = cbs.elements[i].offset;
+				app.cb_struct.pos_offsets[1] = cbs.elements[i].offset + cbs.elements[i].array_stride;
+			}
+			else if (mgl_str_equal(u8"color", cbs.elements[i].name))
+			{
+				MGL_DEBUG_ASSERT(cbs.elements[i].size == 2);
+				app.cb_struct.color_offsets[0] = cbs.elements[i].offset;
+				app.cb_struct.color_offsets[1] = cbs.elements[i].offset + cbs.elements[i].array_stride;
+			}
+		}
 
-		desc.format = MRL_TEXTURE_FORMAT_RGBA8_UN;
-		desc.width = 2;
-		desc.height = 2;
-		desc.data[0] = data;
+		mrl_constant_buffer_desc_t desc = MRL_DEFAULT_CONSTANT_BUFFER_DESC;
+		desc.data = NULL;
+		desc.size = cbs.size;
+		desc.usage = MRL_CONSTANT_BUFFER_USAGE_DYNAMIC;
 
-		handle_error(mrl_create_texture_2d(app.rd, &app.tex, &desc), u8"Failed to create texture");
-
+		handle_error(mrl_create_constant_buffer(app.rd, &app.cbo, &desc), u8"Failed to create constant buffer");
 	}
 
 	// Init IBO
@@ -159,23 +168,24 @@ void load(void)
 		desc.data = data;
 		desc.size = sizeof(data);
 		desc.format = MRL_INDEX_BUFFER_FORMAT_U16;
+		desc.usage = MRL_INDEX_BUFFER_USAGE_STATIC;
 
 		handle_error(mrl_create_index_buffer(app.rd, &app.ibo, &desc), u8"Failed to create index buffer");
 	}
 
 	// Init VBO
 	{
-		my_vertex_t data[] =
+		my_vertex_t data[4] =
 		{
-			{ -0.5f, -0.5f, 0.0f, 0.0f },
-			{ +0.5f, -0.5f, 1.0f, 0.0f },
-			{ +0.5f, +0.5f, 1.0f, 1.0f },
-			{ -0.5f, +0.5f, 0.0f, 1.0f },
+			{ -0.5f, -0.5f,	1.0f, 0.0f, 0.0f, 1.0f },
+			{ +0.5f, -0.5f,	0.0f, 1.0f, 0.0f, 1.0f },
+			{ +0.5f, +0.5f,	0.0f, 0.0f, 1.0f, 1.0f },
+			{ -0.5f, +0.5f,	1.0f, 0.0f, 1.0f, 1.0f },
 		};
 
 		mrl_vertex_buffer_desc_t desc = MRL_DEFAULT_VERTEX_BUFFER_DESC;
 		desc.data = data;
-		desc.size = sizeof(my_vertex_t) * 4;
+		desc.size = sizeof(data);
 		desc.usage = MRL_VERTEX_BUFFER_USAGE_STATIC;
 
 		handle_error(mrl_create_vertex_buffer(app.rd, &app.vbo, &desc), u8"Failed to create vertex buffer");
@@ -197,13 +207,13 @@ void load(void)
 		desc.elements[0].buffer.stride = sizeof(my_vertex_t);
 
 		desc.elements[1] = MRL_DEFAULT_VERTEX_ELEMENT;
-		mgl_str_copy(u8"uvs", desc.elements[1].name, MRL_MAX_VERTEX_ELEMENT_NAME_SIZE);
-		desc.elements[1].size = 2;
+		mgl_str_copy(u8"color", desc.elements[1].name, MRL_MAX_VERTEX_ELEMENT_NAME_SIZE);
+		desc.elements[1].size = 4;
 		desc.elements[1].type = MRL_VERTEX_ELEMENT_TYPE_F32;
 		desc.elements[1].buffer.index = 0;
-		desc.elements[1].buffer.offset = offsetof(my_vertex_t, u);
+		desc.elements[1].buffer.offset = offsetof(my_vertex_t, r);
 		desc.elements[1].buffer.stride = sizeof(my_vertex_t);
-
+		
 		// Set VBOs
 		desc.buffer_count = 1;
 		desc.buffers[0] = app.vbo;
@@ -213,10 +223,47 @@ void load(void)
 
 		handle_error(mrl_create_vertex_array(app.rd, &app.vao, &desc), u8"Failed to create vertex array");
 	}
+
+	// Init raster state
+	{
+		mrl_raster_state_desc_t desc = MRL_DEFAULT_RASTER_STATE_DESC;
+
+		handle_error(mrl_create_raster_state(app.rd, &app.rs, &desc), u8"Failed to create raster state");
+
+		mrl_set_raster_state(app.rd, app.rs);
+	}
+
+	// Init depth stencil state
+	{
+		mrl_depth_stencil_state_desc_t desc = MRL_DEFAULT_DEPTH_STENCIL_STATE_DESC;
+
+		handle_error(mrl_create_depth_stencil_state(app.rd, &app.dss, &desc), u8"Failed to create depth stencil state");
+
+		mrl_set_depth_stencil_state(app.rd, app.dss);
+	}
+
+	// Init blend state
+	{
+		mrl_blend_state_desc_t desc = MRL_DEFAULT_BLEND_STATE_DESC;
+
+		desc.blend_enabled = MGL_TRUE;
+
+		handle_error(mrl_create_blend_state(app.rd, &app.bs, &desc), u8"Failed to create blend state");
+
+		mrl_set_blend_state(app.rd, app.bs);
+	}
 }
 
 void unload(void)
 {
+	// Terminate states
+	mrl_set_raster_state(app.rd, NULL);
+	mrl_destroy_raster_state(app.rd, app.rs);
+	mrl_set_depth_stencil_state(app.rd, NULL);
+	mrl_destroy_depth_stencil_state(app.rd, app.dss);
+	mrl_set_blend_state(app.rd, NULL);
+	mrl_destroy_blend_state(app.rd, app.bs);
+
 	// Terminate vertex array
 	mrl_destroy_vertex_array(app.rd, app.vao);
 
@@ -226,11 +273,8 @@ void unload(void)
 	// Terminate index buffer
 	mrl_destroy_index_buffer(app.rd, app.ibo);
 
-	// Terminate texture
-	mrl_destroy_texture_2d(app.rd, app.tex);
-
-	// Terminate sampler
-	mrl_destroy_sampler(app.rd, app.sampler);
+	// Terminate constant buffer
+	mrl_destroy_constant_buffer(app.rd, app.cbo);
 
 	// Terminate shader pipeline
 	mrl_destroy_shader_stage(app.rd, app.shader.pipeline);
@@ -280,35 +324,46 @@ int main(int argc, char** argv)
 
 	load();
 
-	mgl_bool_t decrease = MGL_FALSE;
-	mgl_f32_t change = 0.0f;
+	// Bind objects
+	mrl_set_shader_pipeline(app.rd, app.shader.pipeline);
+	mrl_set_index_buffer(app.rd, app.ibo);
+	mrl_set_vertex_array(app.rd, app.vao);
+	mrl_bind_constant_buffer(app.rd, app.shader.bp, app.cbo);
 
 	// Main loop
 	while (app.running)
 	{
-		if (decrease)
-		{
-			change -= 0.01f;
-			if (change <= -0.5f)
-				decrease = MGL_FALSE;
-		}
-		else
-		{
-			change += 0.01f;
-			if (change >= +0.5f)
-				decrease = MGL_TRUE;
-		}
-
 		mgl_poll_window_events(&app.window);
 
 		mrl_clear_color(app.rd, 0.0f, 0.4f, 0.8f, 1.0f);
 
-		mrl_set_shader_pipeline(app.rd, app.shader.pipeline);
-		mrl_bind_sampler(app.rd, app.shader.bp, app.sampler);
-		mrl_bind_texture_2d(app.rd, app.shader.bp, app.tex);
-		mrl_set_index_buffer(app.rd, app.ibo);
-		mrl_set_vertex_array(app.rd, app.vao);
-		mrl_draw_triangles_indexed(app.rd, 0, 6);
+		// Update constant buffer
+		{
+			mgl_u8_t* data = (mgl_u8_t*)mrl_map_constant_buffer(app.rd, app.cbo);
+
+			mgl_f32_t* pos_1 = (mgl_f32_t*)(data + app.cb_struct.pos_offsets[0]);
+			pos_1[0] = -0.5f;
+			pos_1[1] = 0.0f;
+			
+			mgl_f32_t* color_1 = (mgl_f32_t*)(data + app.cb_struct.color_offsets[0]);
+			color_1[0] = 1.0f;
+			color_1[1] = 0.0f;
+			color_1[2] = 0.0f;
+			color_1[3] = 1.0f;
+
+			mgl_f32_t* pos_2 = (mgl_f32_t*)(data + app.cb_struct.pos_offsets[1]);
+			pos_2[0] = 0.0f;
+			pos_2[1] = 0.0f;
+
+			mgl_f32_t* color_2 = (mgl_f32_t*)(data + app.cb_struct.color_offsets[1]);
+			color_2[0] = 1.0f;
+			color_2[1] = 1.0f;
+			color_2[2] = 1.0f;
+			color_2[3] = 0.5f;
+
+			mrl_unmap_constant_buffer(app.rd, app.cbo);
+		}	
+		mrl_draw_triangles_indexed_instanced(app.rd, 0, 6, 2);
 
 		mrl_swap_buffers(app.rd);
 	}
