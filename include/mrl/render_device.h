@@ -261,8 +261,8 @@ extern "C" {
 	};
 
 #define MRL_DEFAULT_RASTER_STATE_DESC ((mrl_raster_state_desc_t) {\
-	MGL_TRUE,\
-	MRL_WINDING_CW,\
+	MGL_FALSE,\
+	MRL_WINDING_CCW,\
 	MRL_FACE_BACK,\
 	MRL_RASTER_MODE_FILL,\
 	NULL,\
@@ -493,8 +493,8 @@ extern "C" {
 
 #define MRL_DEFAULT_DEPTH_STENCIL_STATE_DESC ((mrl_depth_stencil_state_desc_t) {\
 	{\
-		MGL_TRUE,\
-		MGL_TRUE,\
+		MGL_FALSE,\
+		MGL_FALSE,\
 		0.1f,\
 		1000.0f,\
 		MRL_COMPARE_LESS,\
