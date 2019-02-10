@@ -480,6 +480,9 @@ static mrl_error_t create_texture_1d(mrl_render_device_t* brd, mrl_texture_1d_t*
 
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
 	// Check errors
 	GLenum gl_err = glGetError();
@@ -640,6 +643,9 @@ static mrl_error_t create_texture_2d(mrl_render_device_t* brd, mrl_texture_2d_t*
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
 	// Check errors
 	GLenum gl_err = glGetError();
@@ -804,6 +810,9 @@ static mrl_error_t create_texture_3d(mrl_render_device_t* brd, mrl_texture_3d_t*
 
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
 	// Check errors
 	GLenum gl_err = glGetError();
@@ -886,6 +895,194 @@ static mrl_error_t update_texture_3d(mrl_render_device_t* brd, mrl_texture_3d_t*
 	// Update texture
 	glBindTexture(GL_TEXTURE_3D, obj->id);
 	glTexSubImage3D(GL_TEXTURE_3D, desc->mip_level, (GLint)desc->dst_x, (GLint)desc->dst_y, (GLint)desc->dst_z, (GLsizei)desc->width, (GLsizei)desc->height, (GLsizei)desc->depth, obj->format, obj->type, desc->data);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
+
+	return MRL_ERROR_NONE;
+}
+
+// ---------- Cube Map ----------
+
+static mrl_error_t create_cube_map(mrl_render_device_t* brd, mrl_cube_map_t** tex, const mrl_cube_map_desc_t* desc)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+
+	// Get internal format, format and type
+	GLenum internal_format, format, type;
+
+	switch (desc->format)
+	{
+		case MRL_TEXTURE_FORMAT_R8_UN: internal_format = GL_R8; format = GL_R; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_R8_SN: internal_format = GL_R8_SNORM; format = GL_R; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_R8_UI: internal_format = GL_R8UI; format = GL_RED_INTEGER; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_R8_SI: internal_format = GL_R8I; format = GL_RED_INTEGER; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_UN: internal_format = GL_RG8; format = GL_RG; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_SN: internal_format = GL_RG8_SNORM; format = GL_RG; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_UI: internal_format = GL_RG8UI; format = GL_RG_INTEGER; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RG8_SI: internal_format = GL_RG8I; format = GL_RG_INTEGER; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_UN: internal_format = GL_RGBA8; format = GL_RGBA; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_SN: internal_format = GL_RGBA8_SNORM; format = GL_RGBA; type = GL_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_UI: internal_format = GL_RGBA8UI; format = GL_RGBA_INTEGER; type = GL_UNSIGNED_BYTE; break;
+		case MRL_TEXTURE_FORMAT_RGBA8_SI: internal_format = GL_RGBA8I; format = GL_RGBA_INTEGER; type = GL_BYTE; break;
+
+		case MRL_TEXTURE_FORMAT_R16_UN: internal_format = GL_R16; format = GL_R; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_R16_SN: internal_format = GL_R16_SNORM; format = GL_R; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_R16_UI: internal_format = GL_R16UI; format = GL_RED_INTEGER; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_R16_SI: internal_format = GL_R16I; format = GL_RED_INTEGER; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_UN: internal_format = GL_RG16; format = GL_RG; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_SN: internal_format = GL_RG16_SNORM; format = GL_RG; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_UI: internal_format = GL_RG16UI; format = GL_RG_INTEGER; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RG16_SI: internal_format = GL_RG16I; format = GL_RG_INTEGER; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_UN: internal_format = GL_RGBA16; format = GL_RGBA; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_SN: internal_format = GL_RGBA16_SNORM; format = GL_RGBA; type = GL_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_UI: internal_format = GL_RGBA16UI; format = GL_RGBA_INTEGER; type = GL_UNSIGNED_SHORT; break;
+		case MRL_TEXTURE_FORMAT_RGBA16_SI: internal_format = GL_RGBA16I; format = GL_RGBA_INTEGER; type = GL_SHORT; break;
+
+		case MRL_TEXTURE_FORMAT_R32_UI: internal_format = GL_R32UI; format = GL_RED_INTEGER; type = GL_UNSIGNED_INT; break;
+		case MRL_TEXTURE_FORMAT_R32_SI: internal_format = GL_R32I; format = GL_RED_INTEGER; type = GL_INT; break;
+		case MRL_TEXTURE_FORMAT_R32_F: internal_format = GL_R32F; format = GL_R; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_RG32_UI: internal_format = GL_RG32UI; format = GL_RG_INTEGER; type = GL_UNSIGNED_INT; break;
+		case MRL_TEXTURE_FORMAT_RG32_SI: internal_format = GL_RG32I; format = GL_RG_INTEGER; type = GL_INT; break;
+		case MRL_TEXTURE_FORMAT_RG32_F: internal_format = GL_RG32F; format = GL_RG; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_RGBA32_UI: internal_format = GL_RGBA32UI; format = GL_RGBA_INTEGER; type = GL_UNSIGNED_INT; break;
+		case MRL_TEXTURE_FORMAT_RGBA32_SI: internal_format = GL_RGBA32I; format = GL_RGBA_INTEGER; type = GL_INT; break;
+		case MRL_TEXTURE_FORMAT_RGBA32_F: internal_format = GL_RGBA32F; format = GL_RGBA; type = GL_FLOAT; break;
+
+		case MRL_TEXTURE_FORMAT_D16: internal_format = GL_DEPTH; format = GL_DEPTH_COMPONENT; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_D32: internal_format = GL_DEPTH; format = GL_DEPTH_COMPONENT; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_D24S8: internal_format = GL_R32UI; format = GL_DEPTH_STENCIL; type = GL_FLOAT; break;
+		case MRL_TEXTURE_FORMAT_D32S8: internal_format = GL_R32UI; format = GL_DEPTH_STENCIL; type = GL_FLOAT; break;
+
+		default:
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to create 2D texture: invalid format");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	// Initialize texture
+	GLuint id;
+	glGenTextures(1, &id);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, id);
+
+	for (mgl_u32_t i = 0, div = 1; i < desc->mip_level_count; ++i, div *= 2)
+	{
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, i, internal_format, (GLsizei)(desc->width / div), (GLsizei)(desc->height / div), 0, format, type, desc->data[MRL_CUBE_MAP_FACE_POSITIVE_X][i]);
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, i, internal_format, (GLsizei)(desc->width / div), (GLsizei)(desc->height / div), 0, format, type, desc->data[MRL_CUBE_MAP_FACE_NEGATIVE_X][i]);
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, i, internal_format, (GLsizei)(desc->width / div), (GLsizei)(desc->height / div), 0, format, type, desc->data[MRL_CUBE_MAP_FACE_POSITIVE_Y][i]);
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, i, internal_format, (GLsizei)(desc->width / div), (GLsizei)(desc->height / div), 0, format, type, desc->data[MRL_CUBE_MAP_FACE_NEGATIVE_Y][i]);
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, i, internal_format, (GLsizei)(desc->width / div), (GLsizei)(desc->height / div), 0, format, type, desc->data[MRL_CUBE_MAP_FACE_POSITIVE_Z][i]);
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, i, internal_format, (GLsizei)(desc->width / div), (GLsizei)(desc->height / div), 0, format, type, desc->data[MRL_CUBE_MAP_FACE_NEGATIVE_Z][i]);
+	}
+
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	// Check errors
+	GLenum gl_err = glGetError();
+	if (gl_err != 0)
+	{
+		glDeleteTextures(1, &id);
+		if (rd->error_callback != NULL)
+			rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
+		return MRL_ERROR_EXTERNAL;
+	}
+
+	// Allocate object
+	mrl_ogl_330_cube_map_t* obj;
+	mgl_error_t err = mgl_allocate(
+		&rd->memory.cube_map.pool,
+		sizeof(*obj),
+		(void**)&obj);
+	if (err != MGL_ERROR_NONE)
+	{
+		glDeleteTextures(1, &id);
+		return mrl_make_mgl_error(err);
+	}
+
+	// Store texture info
+	obj->id = id;
+	obj->width = desc->width;
+	obj->height = desc->height;
+	obj->internal_format = internal_format;
+	obj->format = format;
+	obj->type = type;
+	*tex = (mrl_cube_map_t*)obj;
+
+	return MRL_ERROR_NONE;
+}
+
+static void destroy_cube_map(mrl_render_device_t* brd, mrl_cube_map_t* tex)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_cube_map_t* obj = (mrl_ogl_330_cube_map_t*)tex;
+
+	// Delete texture
+	glDeleteTextures(1, &obj->id);
+
+	// Deallocate object
+	mgl_deallocate(
+		&rd->memory.cube_map.pool,
+		obj);
+}
+
+static void generate_cube_map_mipmaps(mrl_render_device_t* brd, mrl_cube_map_t* tex)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_cube_map_t* obj = (mrl_ogl_330_cube_map_t*)tex;
+
+	glBindTexture(GL_TEXTURE_CUBE_MAP, obj->id);
+	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+}
+
+static void bind_cube_map(mrl_render_device_t* brd, mrl_shader_binding_point_t* bp, mrl_cube_map_t* tex)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_cube_map_t* obj = (mrl_ogl_330_cube_map_t*)tex;
+	mrl_ogl_330_shader_binding_point_t* rbp = (mrl_ogl_330_shader_binding_point_t*)bp;
+
+	// Bind texture
+	glActiveTexture(GL_TEXTURE0 + rbp->loc);
+	if (tex == NULL)
+		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+	else
+		glBindTexture(GL_TEXTURE_CUBE_MAP, obj->id);
+	glUniform1i(rbp->loc, rbp->loc);
+}
+
+static mrl_error_t update_cube_map(mrl_render_device_t* brd, mrl_cube_map_t* tex, const mrl_cube_map_update_desc_t* desc)
+{
+	mrl_ogl_330_render_device_t* rd = (mrl_ogl_330_render_device_t*)brd;
+	mrl_ogl_330_cube_map_t* obj = (mrl_ogl_330_cube_map_t*)tex;
+
+	// Get face
+	GLenum face;
+	switch (desc->face)
+	{
+		case MRL_CUBE_MAP_FACE_POSITIVE_X: face = GL_TEXTURE_CUBE_MAP_POSITIVE_X; break;
+		case MRL_CUBE_MAP_FACE_NEGATIVE_X: face = GL_TEXTURE_CUBE_MAP_NEGATIVE_X; break;
+		case MRL_CUBE_MAP_FACE_POSITIVE_Y: face = GL_TEXTURE_CUBE_MAP_POSITIVE_Y; break;
+		case MRL_CUBE_MAP_FACE_NEGATIVE_Y: face = GL_TEXTURE_CUBE_MAP_NEGATIVE_Y; break;
+		case MRL_CUBE_MAP_FACE_POSITIVE_Z: face = GL_TEXTURE_CUBE_MAP_POSITIVE_Z; break;
+		case MRL_CUBE_MAP_FACE_NEGATIVE_Z: face = GL_TEXTURE_CUBE_MAP_NEGATIVE_Z; break;
+		default:
+			if (rd->error_callback != NULL)
+				rd->error_callback(MRL_ERROR_INVALID_PARAMS, u8"Failed to update cube map: invalid face");
+			return MRL_ERROR_INVALID_PARAMS;
+	}
+
+	// Update texture
+	glBindTexture(GL_TEXTURE_CUBE_MAP, obj->id);
+	glTexSubImage2D(face, desc->mip_level, (GLint)desc->dst_x, (GLint)desc->dst_y, (GLsizei)desc->width, (GLsizei)desc->height, obj->format, obj->type, desc->data);
 
 	// Check errors
 	GLenum gl_err = glGetError();

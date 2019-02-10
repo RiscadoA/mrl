@@ -1306,32 +1306,32 @@ extern "C" {
 		/// <summary>
 		///		Cube map positive X face.
 		/// </summary>
-		MRL_CUBE_MAP_FACE_POSITIVE_X,
+		MRL_CUBE_MAP_FACE_POSITIVE_X = 0,
 
 		/// <summary>
 		///		Cube map negative X face.
 		/// </summary>
-		MRL_CUBE_MAP_FAEC_NEGATIVE_X,
+		MRL_CUBE_MAP_FACE_NEGATIVE_X = 1,
 
 		/// <summary>
 		///		Cube map positive Y face.
 		/// </summary>
-		MRL_CUBE_MAP_FACE_POSITIVE_Y,
+		MRL_CUBE_MAP_FACE_POSITIVE_Y = 2,
 
 		/// <summary>
 		///		Cube map negative Y face.
 		/// </summary>
-		MRL_CUBE_MAP_FACE_NEGATIVE_Y,
+		MRL_CUBE_MAP_FACE_NEGATIVE_Y = 3,
 
 		/// <summary>
 		///		Cube map positive Z face.
 		/// </summary>
-		MRL_CUBE_MAP_FACE_POSITIVE_Z,
+		MRL_CUBE_MAP_FACE_POSITIVE_Z = 4,
 
 		/// <summary>
 		///		Cube map negative Z face.
 		/// </summary>
-		MRL_CUBE_MAP_FACE_NEGATIVE_Z,
+		MRL_CUBE_MAP_FACE_NEGATIVE_Z = 5,
 	};
 
 	struct mrl_cube_map_desc_t
