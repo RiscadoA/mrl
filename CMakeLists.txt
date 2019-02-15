@@ -11,6 +11,9 @@ set(MRL_SOURCE
 	"src/mrl/error.c"
 	"src/mrl/render_device.c"
 	"src/mrl/ogl_330_render_device.c"
+
+	"src/mrl/renderer.c"
+	"src/mrl/deferred_renderer.c"
 )
 
 set(MRL_INCLUDE
@@ -18,6 +21,12 @@ set(MRL_INCLUDE
 	"include/mrl/error.h"
 	"include/mrl/render_device.h"
 	"include/mrl/ogl_330_render_device.h"
+
+	"include/mrl/effect.h"
+	"include/mrl/mesh.h"
+	"include/mrl/frame.h"
+	"include/mrl/renderer.h"
+	"include/mrl/deferred_renderer.h"
 )
 
 #####################################################
