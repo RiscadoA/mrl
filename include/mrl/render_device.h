@@ -2097,6 +2097,11 @@ extern "C" {
 		mgl_u64_t max_shader_pipeline_count;
 
 		/// <summary>
+		///		Enable debug mode?
+		/// </summary>	
+		mgl_bool_t debug_mode;
+
+		/// <summary>
 		///		Hint list.
 		///		Hints may be ignored by some render devices.
 		///		Optional (can be NULL).
@@ -2123,6 +2128,7 @@ extern "C" {
 	256,\
 	1024,\
 	512,\
+	MGL_TRUE,\
 	NULL,\
 })
 

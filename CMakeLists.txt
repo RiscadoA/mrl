@@ -11,9 +11,7 @@ set(MRL_SOURCE
 	"src/mrl/error.c"
 	"src/mrl/render_device.c"
 	"src/mrl/ogl_330_render_device.c"
-
-	"src/mrl/renderer.c"
-	"src/mrl/deferred_renderer.c"
+	"src/mrl/d3d_11_render_device.c"
 )
 
 set(MRL_INCLUDE
@@ -21,18 +19,14 @@ set(MRL_INCLUDE
 	"include/mrl/error.h"
 	"include/mrl/render_device.h"
 	"include/mrl/ogl_330_render_device.h"
-
-	"include/mrl/effect.h"
-	"include/mrl/mesh.h"
-	"include/mrl/frame.h"
-	"include/mrl/renderer.h"
-	"include/mrl/deferred_renderer.h"
+	"include/mrl/d3d_11_render_device.h"
 )
 
 #####################################################
 # Set options
 option(MRL_BUILD_SHARED OFF)
-option(MRL_BUILD_OGL_330 ON)
+option(MRL_BUILD_OGL_330 OFF)
+option(MRL_BUILD_D3D_11 OFF)
 
 #####################################################
 # Create MRL target and set its properties
@@ -55,6 +49,12 @@ if(MRL_BUILD_OGL_330)
 	target_link_libraries(mrl PRIVATE OpenGL::GL)
 	find_package(GLEW REQUIRED)
 	target_link_libraries(mrl PUBLIC GLEW::GLEW)
+	target_compile_definitions(mrl PUBLIC MRL_BUILD_OGL_330)
+endif()
+
+# Set D3D 11
+if(MRL_BUILD_D3D_11)
+	target_compile_definitions(mrl PUBLIC MRL_BUILD_D3D_11)
 endif()
 
 generate_export_header(mrl)
@@ -77,10 +77,6 @@ target_compile_definitions(mrl
 	PRIVATE
 		MRL_API_EXPORT
 )
-
-if (MRL_BUILD_OGL_330)
-	target_compile_definitions(mrl PUBLIC MRL_BUILD_OGL_330)
-endif()
 
 # Add file filters
 foreach(_source IN ITEMS ${MRL_SOURCE} ${MRL_INCLUDE})
