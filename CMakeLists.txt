@@ -1,7 +1,8 @@
 # ./CMakeLists.txt
 cmake_minimum_required(VERSION 3.11)
-project(libmrl VERSION 0.1.0 LANGUAGES C)
+project(libmrl VERSION 1.0.0 LANGUAGES C)
 include(GenerateExportHeader)
+include(CMakePackageConfigHelpers)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 #####################################################
@@ -43,9 +44,10 @@ target_link_libraries(mrl PUBLIC MGL::MGL)
 # Link GLEW and OpenGL
 if(MRL_BUILD_OGL_330)
 	find_package(OpenGL REQUIRED)
-	target_link_libraries(mrl PRIVATE OpenGL::GL)
+	target_link_libraries(mrl PUBLIC OpenGL::GL)
 	find_package(GLEW REQUIRED)
 	target_link_libraries(mrl PUBLIC GLEW::GLEW)
+	set(MRL_DEPENDENCY_TARGETS ${MRL_DEPENDENCY_TARGETS} OpenGL::GL GLEW::GLEW)
 endif()
 
 generate_export_header(mrl)
@@ -91,7 +93,8 @@ endforeach()
 include (GNUInstallDirs)
 set(INSTALL_CONFIGDIR ${CMAKE_INSTALL_LIBDIR}/cmake/MRL)
 
-install(TARGETS mrl
+install(
+	TARGETS mrl
     EXPORT mrl-targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -111,6 +114,14 @@ install(EXPORT mrl-targets
 	DESTINATION
 		${INSTALL_CONFIGDIR}
 )
+export(
+	TARGETS 
+		mrl
+	NAMESPACE
+		MRL::
+	FILE
+		MRLTargets.cmake
+)
 
 # Create a ConfigVersion.cmake file
 include(CMakePackageConfigHelpers)
@@ -120,9 +131,11 @@ write_basic_package_version_file(
     COMPATIBILITY AnyNewerVersion
 )
 
-configure_package_config_file(${CMAKE_CURRENT_LIST_DIR}/cmake/MRLConfig.cmake.in
+configure_package_config_file(
+	${CMAKE_CURRENT_LIST_DIR}/cmake/MRLConfig.cmake.in
     ${CMAKE_CURRENT_BINARY_DIR}/MRLConfig.cmake
     INSTALL_DESTINATION ${INSTALL_CONFIGDIR}
+	PATH_VARS MRL_BUILD_OGL_330
 )
 
 # Install the Config, ConfigVersion and custom find modules

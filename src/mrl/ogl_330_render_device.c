@@ -4,6 +4,7 @@
 #include <mgl/memory/manipulation.h>
 #include <mgl/memory/pool_allocator.h>
 #include <mgl/string/manipulation.h>
+#include <mgl/stream/buffer_stream.h>
 #include <mgl/input/window.h>
 #include <mgl/math/scalar.h>
 
@@ -2280,7 +2281,22 @@ static mrl_error_t create_vertex_array(mrl_render_device_t* brd, mrl_vertex_arra
 		glBindBuffer(GL_ARRAY_BUFFER, vbo->id);
 
 		// Get attribute location
-		GLuint loc = glGetAttribLocation(pp->id, desc->elements[i].name);
+		GLint loc = glGetAttribLocation(pp->id, desc->elements[i].name);
+		if (loc == -1)
+		{
+			if (rd->error_callback != NULL)
+			{
+				mgl_chr8_t msg[512] = { 0 };
+				mgl_buffer_stream_t stream;
+				mgl_init_buffer_stream(&stream, msg, sizeof(msg));
+				mgl_print(&stream, u8"Failed to create vertex array, couldn't find vertex element \"");
+				mgl_print(&stream, desc->elements[i].name);
+				mgl_print(&stream, u8"\"");
+				rd->error_callback(MRL_ERROR_VERTEX_ELEMENT_NOT_FOUND, msg);
+			}
+			glDeleteVertexArrays(1, &id);
+			return MRL_ERROR_VERTEX_ELEMENT_NOT_FOUND;
+		}
 		
 		// Get type
 		GLenum type;
@@ -2566,12 +2582,17 @@ static mrl_shader_binding_point_t* get_shader_binding_point(mrl_render_device_t*
 		if (loc == GL_INVALID_INDEX)
 		{
 			GLenum gl_err = glGetError();
-			if (gl_err != 0)
-			{
-				if (rd->error_callback != NULL)
-					rd->error_callback(MRL_ERROR_EXTERNAL, opengl_error_code_to_str(gl_err));
-				return NULL;
-			}
+			mgl_chr8_t msg[512] = { 0 };
+			mgl_buffer_stream_t stream;
+			mgl_init_buffer_stream(&stream, msg, sizeof(msg));
+			mgl_print(&stream, u8"Couldn't find any binding point with the name \"");
+			mgl_print(&stream, name);
+			mgl_print(&stream, u8"\" (OpenGL error '");
+			mgl_print(&stream, opengl_error_code_to_str(gl_err));
+			mgl_print(&stream, u8"')");
+
+			if (rd->warning_callback != NULL)
+				rd->warning_callback(MRL_ERROR_BINDING_POINT_NOT_FOUND, msg);
 			return NULL;
 		}
 	}

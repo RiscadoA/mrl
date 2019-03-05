@@ -1,13 +1,16 @@
-get_filename_component(MGL_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+get_filename_component(MRL_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
 include(CMakeFindDependencyMacro)
+include(CMakePackageConfigHelpers)
 
-list(APPEND CMAKE_MODULE_PATH ${MGL_CMAKE_DIR})
+list(APPEND CMAKE_MODULE_PATH ${MRL_CMAKE_DIR})
 
-#find_dependency(XXX 1.0 REQUIRED MODULE)
 list(REMOVE_AT CMAKE_MODULE_PATH -1)
 
-if(NOT TARGET MGL::MGL)
-    include("${MGL_CMAKE_DIR}/MGLTargets.cmake")
+find_dependency(OpenGL QUIET)
+find_dependency(GLEW QUIET)
+
+if(NOT TARGET MRL::MRL)
+    include("${MRL_CMAKE_DIR}/MRLTargets.cmake")
 endif()
 
-set(MGL_LIBRARIES MGL::MGL)
+set(MGL_LIBRARIES MRL::MRL)
